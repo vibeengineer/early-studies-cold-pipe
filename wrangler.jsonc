@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "early-studies-cold-pipe",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-17",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "migrations_dir": "./src/database/migrations",
+      "binding": "DB",
+      "database_name": "early-studies-cold-pipe-database",
+      "database_id": "21d9f233-c99c-49dd-a9f5-eae3667b4c77"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "queue": "cold-pipe-queue",
+        "binding": "QUEUE"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "cold-pipe-queue"
+      }
+    ]
+  }
+  // "ai": {
+  //   "binding": "AI"
+  // },
+  // "vars": {
+  //   "MY_VAR": "my-variable"
+  // },
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "MY_KV_NAMESPACE",
+  //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  //   }
+  // ],
+  // "r2_buckets": [
+  //   {
+  //     "binding": "MY_BUCKET",
+  //     "bucket_name": "my-bucket"
+  //   }
+  // ],
+  // "observability": {
+  //   "enabled": true,
+  //   "head_sampling_rate": 1
+  // }
+}
