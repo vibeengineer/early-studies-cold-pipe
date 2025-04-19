@@ -1,7 +1,10 @@
-import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import type { ApolloContact } from "../services/apollo/schema";
+import { logger } from "../services/logger";
 
 export type EmailPipeParams = {
-  email: string;
+  apolloContact: ApolloContact;
+  cleanupAfter: boolean;
 };
 
 /**
@@ -9,28 +12,9 @@ export type EmailPipeParams = {
  */
 export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> {
   async run(event: WorkflowEvent<EmailPipeParams>, step: WorkflowStep) {
-    const { email } = event.payload;
+    const { apolloContact, cleanupAfter } = event.payload;
 
-    // Simple logger for workflow steps
-    const workflowLogger = {
-      log: (message: string, data?: object) =>
-        console.log(
-          `[WF ${event.instanceId ?? "N/A"}] ${message}`,
-          data ? JSON.stringify(data) : ""
-        ),
-      warn: (message: string, data?: object) =>
-        console.warn(
-          `[WF ${event.instanceId ?? "N/A"}] WARN: ${message}`,
-          data ? JSON.stringify(data) : ""
-        ),
-      error: (message: string, data?: object) =>
-        console.error(
-          `[WF ${event.instanceId ?? "N/A"}] ERROR: ${message}`,
-          data ? JSON.stringify(data) : ""
-        ),
-    };
-
-    workflowLogger.log("Starting EmailPipeWorkflow", { email });
+    logger.info("Starting EmailPipeWorkflow", { apolloContact, cleanupAfter });
 
     // Step 1: Check if headline exists
     const existingEmail = await step.do(
@@ -57,7 +41,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "1 minute",
       },
       async () => {
-        workflowLogger.log("Starting email analysis", { email });
+        logger.info("Starting email analysis", { apolloContact, cleanupAfter });
         return "other";
       }
     );
@@ -73,8 +57,9 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 seconds",
       },
       async () => {
-        workflowLogger.log("Attempting use gemini ai to generate a structured person record", {
-          email,
+        logger.info("Attempting use gemini ai to generate a structured person record", {
+          apolloContact,
+          cleanupAfter,
         });
       }
     );
@@ -90,8 +75,9 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 seconds",
       },
       async () => {
-        workflowLogger.log("Attempting use gemini ai to write personalised emails", {
-          email,
+        logger.info("Attempting use gemini ai to write personalised emails", {
+          apolloContact,
+          cleanupAfter,
         });
       }
     );
@@ -107,7 +93,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 seconds",
       },
       async () => {
-        workflowLogger.log("Attempting to store in database", { email });
+        logger.info("Attempting to store in database", { apolloContact, cleanupAfter });
       }
     );
   }
