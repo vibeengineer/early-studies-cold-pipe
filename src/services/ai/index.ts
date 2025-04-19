@@ -2,7 +2,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import type { ApolloContact } from "../apollo/schema";
 import type { PersonProfile } from "../proxycurl/schemas";
-import { model } from "./config";
+import { geminiFlashModel } from "./config";
 import { generatePrompt } from "./prompt-generator";
 import { type GenerateEmail, generateEmailSchema } from "./types";
 
@@ -26,7 +26,7 @@ export async function generateEmail(
 
   try {
     const { object } = await generateObject({
-      model,
+      model: geminiFlashModel,
       schema: generateEmailSchema,
       prompt: systemPrompt,
     });

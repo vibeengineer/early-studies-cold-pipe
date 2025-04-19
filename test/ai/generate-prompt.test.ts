@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generatePrompt } from "../../src/services/gemini/prompt-generator";
+import { generatePrompt } from "../../src/services/ai/prompt-generator";
 import { MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE } from "../mocks/person";
 
 const MOCK_PREVIOUS_EMAILS = [
@@ -55,78 +55,73 @@ describe("generatePrompt", () => {
   it("should generate a valid prompt for initial email (sequence 1)", async () => {
     const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 1, []);
     console.log(prompt);
-    expect(true).toBe(true);
-
-    // try {
-    // } catch (error) {
-    //   console.error(error);
-    // }
+    expect(prompt).toBeDefined();
   });
 
-  // it("should generate a valid prompt for follow-up email (sequence 2)", () => {
-  //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 2, [
-  //     MOCK_PREVIOUS_EMAILS[0],
-  //   ]);
+  it("should generate a valid prompt for follow-up email (sequence 2)", () => {
+    const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 2, [
+      MOCK_PREVIOUS_EMAILS[0],
+    ]);
 
-  //   console.log(`\n--- Generated Prompt for Email 2 ---\n${prompt}`);
+    console.log(`\n--- Generated Prompt for Email 2 ---\n${prompt}`);
 
-  //   expect(prompt).toBeDefined();
-  // });
+    expect(prompt).toBeDefined();
+  });
 
-  // it("should generate a valid prompt for post-conference email (sequence 3)", () => {
-  //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 3, [
-  //     MOCK_PREVIOUS_EMAILS[0],
-  //     MOCK_PREVIOUS_EMAILS[1],
-  //   ]);
+  it("should generate a valid prompt for post-conference email (sequence 3)", () => {
+    const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 3, [
+      MOCK_PREVIOUS_EMAILS[0],
+      MOCK_PREVIOUS_EMAILS[1],
+    ]);
 
-  //   console.log(`\n--- Generated Prompt for Email 3 ---\n${prompt}`);
+    console.log(`\n--- Generated Prompt for Email 3 ---\n${prompt}`);
 
-  //   expect(prompt).toBeDefined();
-  // });
+    expect(prompt).toBeDefined();
+  });
 
-  // it("should generate a valid prompt for Gen Z Research offer email (sequence 4)", () => {
-  //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 4, [
-  //     MOCK_PREVIOUS_EMAILS[0],
-  //     MOCK_PREVIOUS_EMAILS[1],
-  //     MOCK_PREVIOUS_EMAILS[2],
-  //   ]);
+  it("should generate a valid prompt for Gen Z Research offer email (sequence 4)", () => {
+    const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 4, [
+      MOCK_PREVIOUS_EMAILS[0],
+      MOCK_PREVIOUS_EMAILS[1],
+      MOCK_PREVIOUS_EMAILS[2],
+    ]);
 
-  //   console.log(`\n--- Generated Prompt for Email 4 ---\n${prompt}`);
+    console.log(`\n--- Generated Prompt for Email 4 ---\n${prompt}`);
 
-  //   expect(prompt).toBeDefined();
-  // });
+    expect(prompt).toBeDefined();
+  });
 
-  // it("should generate a valid prompt for case study email (sequence 5)", () => {
-  //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 5, [
-  //     MOCK_PREVIOUS_EMAILS[0],
-  //     MOCK_PREVIOUS_EMAILS[1],
-  //     MOCK_PREVIOUS_EMAILS[2],
-  //   ]);
+  it("should generate a valid prompt for case study email (sequence 5)", () => {
+    const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 5, [
+      MOCK_PREVIOUS_EMAILS[0],
+      MOCK_PREVIOUS_EMAILS[1],
+      MOCK_PREVIOUS_EMAILS[2],
+    ]);
 
-  //   console.log(`\n--- Generated Prompt for Email 5 ---\n${prompt}`);
+    console.log(`\n--- Generated Prompt for Email 5 ---\n${prompt}`);
 
-  //   expect(prompt).toBeDefined();
-  // });
+    expect(prompt).toBeDefined();
+  });
 
-  // it("should generate a valid prompt for final break email (sequence 6)", () => {
-  //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 6, [
-  //     MOCK_PREVIOUS_EMAILS[0],
-  //     MOCK_PREVIOUS_EMAILS[1],
-  //     MOCK_PREVIOUS_EMAILS[2],
-  //   ]);
+  it("should generate a valid prompt for final break email (sequence 6)", () => {
+    const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 6, [
+      MOCK_PREVIOUS_EMAILS[0],
+      MOCK_PREVIOUS_EMAILS[1],
+      MOCK_PREVIOUS_EMAILS[2],
+    ]);
 
-  //   console.log(`\n--- Generated Prompt for Email 6 ---\n${prompt}`);
+    console.log(`\n--- Generated Prompt for Email 6 ---\n${prompt}`);
 
-  //   expect(prompt).toBeDefined();
-  // });
+    expect(prompt).toBeDefined();
+  });
 
-  // it("should handle an invalid sequence number gracefully", () => {
-  //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 7, []);
+  it("should handle an invalid sequence number gracefully", () => {
+    const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 7, []);
 
-  //   console.log(`\n--- Generated Prompt for Invalid Sequence ---\n${prompt}`);
+    console.log(`\n--- Generated Prompt for Invalid Sequence ---\n${prompt}`);
 
-  //   expect(prompt).toBeDefined();
-  // });
+    expect(prompt).toBeDefined();
+  });
 
   // it("should include enrichment data in the prompt when available", () => {
   //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 1, []);

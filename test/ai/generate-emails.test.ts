@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { generateEmail } from "../../src/services/gemini/index";
-import type { GenerateEmail } from "../../src/services/gemini/types";
+import { generateEmail } from "../../src/services/ai/index";
+import type { GenerateEmail } from "../../src/services/ai/types";
 import { MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE } from "../mocks/person";
 
 describe("generate all emails", async () => {
@@ -9,7 +9,11 @@ describe("generate all emails", async () => {
 
   it("generate email one", async () => {
     const email = await generateEmail(MOCK_APOLLO_CONTACT, MOCK_ENRICHMENT_PERSON_PROFILE, 1, []);
-    console.log(email.data?.message, email.data?.subject);
+
+    console.log("SUBJECT:");
+    console.log(email.data?.subject);
+    console.log("MESSAGE:");
+    console.log(email.data?.message);
     expect(email.data).toBeDefined();
     expect(email.data?.message).toBeDefined();
     expect(email.data?.subject).toBeDefined();
@@ -24,7 +28,10 @@ describe("generate all emails", async () => {
       2,
       previousEmails
     );
-    console.log(email.data?.message, email.data?.subject);
+    console.log("SUBJECT:");
+    console.log(email.data?.subject);
+    console.log("MESSAGE:");
+    console.log(email.data?.message);
     expect(email.data).toBeDefined();
     expect(email.data?.message).toBeDefined();
     expect(email.data?.subject).toBeDefined();
@@ -46,7 +53,10 @@ describe("generate all emails", async () => {
       3,
       previousEmails
     );
-    console.log(email.data?.message, email.data?.subject);
+    console.log("SUBJECT:");
+    console.log(email.data?.subject);
+    console.log("MESSAGE:");
+    console.log(email.data?.message);
     expect(email.data).toBeDefined();
     expect(email.data?.message).toBeDefined();
     expect(email.data?.subject).toBeDefined();

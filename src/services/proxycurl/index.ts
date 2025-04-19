@@ -4,7 +4,7 @@ import PersonProfileSchema, { type PersonProfile } from "./schemas";
 
 export const PROXYCURL_API_BASE = "https://nubela.co/proxycurl/api/v2/linkedin";
 
-export async function fetchPersonProfile(linkedinProfileUrl: string): Promise<PersonProfile> {
+export async function fetchPersonProfile(linkedinProfileUrl: string) {
   try {
     z.string().url().parse(linkedinProfileUrl);
   } catch (error) {
@@ -38,5 +38,9 @@ export async function fetchPersonProfile(linkedinProfileUrl: string): Promise<Pe
 
   const validatedData = PersonProfileSchema.parse(data);
 
-  return validatedData;
+  return {
+    success: true,
+    data: validatedData,
+    error: null,
+  };
 }
