@@ -20,7 +20,12 @@ export const generatePrompt = (
 
   const previousEmailsSummary =
     previousEmails.length > 0
-      ? `PREVIOUS EMAILS SENT (Subject Lines):\n- ${previousEmails.map((email) => email.subject).join("\n- ")}`
+      ? `PREVIOUS EMAILS SENT:\n${previousEmails
+          .map(
+            (email, index) =>
+              `--- Email ${index + 1} ---\nSubject: ${email.subject}\nBody:\n${email.message}\n--- End Email ${index + 1} ---`
+          )
+          .join("\n\n")}`
       : "INFO: This is the very first email to this person.";
 
   const formattedProfile = formatProfileForPrompt(contactData);

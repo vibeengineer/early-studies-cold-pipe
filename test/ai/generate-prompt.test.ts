@@ -129,11 +129,16 @@ describe("generatePrompt", () => {
   //   console.log(`\n--- Generated Prompt with Enrichment Data ---\n${prompt}`);
   // });
 
-  // it("should handle null enrichment data gracefully", () => {
-  //   const prompt = generatePrompt(MOCK_APOLLO_CONTACT, null, 1, []);
+  it("should handle null enrichment data gracefully", () => {
+    const prompt = generatePrompt(MOCK_APOLLO_CONTACT, null, 1, []);
 
-  //   console.log(`\n--- Generated Prompt without Enrichment Data ---\n${prompt}`);
+    console.log(`\n--- Generated Prompt without Enrichment Data ---\n${prompt}`);
 
-  //   expect(prompt).toBeDefined();
-  // });
+    expect(prompt).toBeDefined();
+    expect(prompt).not.toContain("ADDITIONAL LINKEDIN ENRICHMENT DATA");
+    expect(prompt).toContain(
+      "Remember to personalize significantly using the PERSON CONTEXT fields."
+    );
+    expect(prompt).not.toContain("and the ADDITIONAL LINKEDIN ENRICHMENT DATA if available");
+  });
 });

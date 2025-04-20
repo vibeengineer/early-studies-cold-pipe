@@ -16,13 +16,18 @@ const validContactSchema = z
 
 export async function generateEmail(
   contact: ApolloContact,
-  profile: PersonProfile,
   sequenceNumber: number,
+  profile?: PersonProfile | null,
   previousEmails: GenerateEmail[] = []
 ) {
   const parsedContact = validContactSchema.parse(contact) as ApolloContact;
 
-  const systemPrompt = generatePrompt(parsedContact, profile, sequenceNumber, previousEmails);
+  const systemPrompt = generatePrompt(
+    parsedContact,
+    profile ?? null,
+    sequenceNumber,
+    previousEmails
+  );
 
   try {
     const { object } = await generateObject({
@@ -45,8 +50,8 @@ export async function generateEmail(
   }
 }
 
-export async function generateAllEmails(contact: ApolloContact, profile: PersonProfile) {
-  const email1 = await generateEmail(contact, profile, 1, []);
+export async function generateAllEmails(contact: ApolloContact, profile?: PersonProfile | null) {
+  const email1 = await generateEmail(contact, 1, profile, []);
   if (!email1.success) {
     return {
       data: null,
@@ -54,7 +59,7 @@ export async function generateAllEmails(contact: ApolloContact, profile: PersonP
       success: false as const,
     };
   }
-  const email2 = await generateEmail(contact, profile, 2, [email1.data]);
+  const email2 = await generateEmail(contact, 2, profile, [email1.data]);
   if (!email2.success) {
     return {
       data: null,
@@ -62,7 +67,7 @@ export async function generateAllEmails(contact: ApolloContact, profile: PersonP
       success: false as const,
     };
   }
-  const email3 = await generateEmail(contact, profile, 3, [email1.data, email2.data]);
+  const email3 = await generateEmail(contact, 3, profile, [email1.data, email2.data]);
   if (!email3.success) {
     return {
       data: null,
@@ -70,7 +75,7 @@ export async function generateAllEmails(contact: ApolloContact, profile: PersonP
       success: false as const,
     };
   }
-  const email4 = await generateEmail(contact, profile, 4, [email1.data, email2.data, email3.data]);
+  const email4 = await generateEmail(contact, 4, profile, [email1.data, email2.data, email3.data]);
   if (!email4.success) {
     return {
       data: null,
