@@ -20,7 +20,6 @@ export async function uploadLeadsToSmartlead(
   leads: Lead[]
 ): Promise<UploadLeadsResponse> {
   const camelCaseLeads = leads.map(structureObjectWithCustomFields);
-  console.log(camelCaseLeads);
   const response = await fetch(
     `https://server.smartlead.ai/api/v1/campaigns/${campaignId}/leads?api_key=${env.SMARTLEAD_API_KEY}`,
     {
@@ -42,7 +41,6 @@ export async function uploadLeadsToSmartlead(
   );
 
   if (!response.ok) {
-    console.log(await response.json());
     throw new Error(`Failed to upload leads to Smartlead: ${response.statusText}`);
   }
 

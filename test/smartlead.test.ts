@@ -57,7 +57,6 @@ describe("Smartlead Service Integration Tests", () => {
     async () => {
       try {
         const response = await createCampaign();
-        console.log("Create Campaign Response:", response);
 
         expect(response).toBeDefined();
         expect(response.ok).toBe(true);
@@ -110,7 +109,6 @@ describe("Smartlead Service Integration Tests", () => {
 
       try {
         const response = await uploadLeadsToSmartlead(testCampaignId, sampleLeads);
-        console.log("Upload Leads Response:", response);
 
         expect(response).toBeDefined();
         expect(response.ok).toBe(true);
