@@ -42,7 +42,6 @@ const TIMEOUT = 30000;
 
 describe("Smartlead Service Integration Tests", () => {
   let testCampaignId: string | null = null;
-  const testCampaignName = `Vitest Integration Test ${Date.now()}`;
 
   beforeAll(() => {
     if (!env.SMARTLEAD_API_KEY) {
