@@ -1,5 +1,5 @@
 import type { ApolloContact } from "../apollo/schema";
-import type { PersonProfile } from "../proxycurl/schemas";
+import type { LinkedinProfile } from "../proxycurl/schemas";
 
 export const formatProfileForPrompt = (contact: ApolloContact): string => {
   let profileSummary = `Name: ${contact["First Name"] || ""} ${contact["Last Name"] || ""}\n`;
@@ -14,7 +14,7 @@ export const formatProfileForPrompt = (contact: ApolloContact): string => {
   return profileSummary.trim();
 };
 
-export const extractPersonalizationData = (contact: ApolloContact, profile: PersonProfile) => {
+export const extractPersonalizationData = (contact: ApolloContact, profile: LinkedinProfile) => {
   const industryOrField =
     contact.Industry || (profile.industry ?? "") || contact.Title || "your field";
 

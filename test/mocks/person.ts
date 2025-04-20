@@ -1,5 +1,5 @@
 import type { ApolloContact } from "../../src/services/apollo/schema";
-import type { PersonProfile } from "../../src/services/proxycurl/schemas";
+import type { LinkedinProfile } from "../../src/services/proxycurl/schemas";
 
 export const MOCK_APOLLO_CONTACT: ApolloContact = {
   "First Name": "Jennifer",
@@ -65,7 +65,7 @@ export const MOCK_APOLLO_CONTACT: ApolloContact = {
   "Tertiary Email Source": null,
 };
 
-export const MOCK_ENRICHMENT_PERSON_PROFILE: PersonProfile = {
+export const MOCK_ENRICHMENT_PERSON_PROFILE: LinkedinProfile = {
   accomplishment_courses: [],
   accomplishment_honors_awards: [
     {

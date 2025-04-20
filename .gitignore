@@ -34,3 +34,4 @@ lerna-debug.log*
 bulk-email-upload.csv
 
 src/services/apollo/data/
+todo-list.md

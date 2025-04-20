@@ -1,5 +1,5 @@
 import type { ApolloContact } from "../apollo/schema";
-import type { PersonProfile } from "../proxycurl/schemas";
+import type { LinkedinProfile } from "../proxycurl/schemas";
 import { CONTEXT_ABOUT_EARLY_STUDIES_BUSINESS, KEY_CLIENTS_OF_EARLY_STUDIES } from "./constants";
 import { getEmailSequenceGuidance } from "./email-templates";
 import type { GenerateEmail } from "./types";
@@ -7,7 +7,7 @@ import { formatProfileForPrompt } from "./utils";
 
 export const generatePrompt = (
   contactData: ApolloContact,
-  enrichmentData: PersonProfile | null,
+  enrichmentData: LinkedinProfile | null,
   sequenceNumber: number,
   previousEmails: GenerateEmail[] = []
 ) => {
@@ -90,6 +90,7 @@ GENERAL GUIDELINES FOR ALL EMAILS:
 9. Ensure subject lines are brief, specific, and conversational.
 10. Never use marketing buzzwords, jargon, or overly enthusiastic language.
 11. Create variation between emails to different recipients using the same template.
+12. When talking about industry trends be authoritative and come across like you have good industry knowledge.
 
 TASK: Generate Email #${sequenceNumber} in the sequence.
 OUTPUT FORMAT: You MUST output ONLY the subject line and the email body, matching the 'generateEmailSchema' (JSON with 'subject' and 'message' keys). DO NOT include any other text, greetings, or explanations before or after the JSON output.

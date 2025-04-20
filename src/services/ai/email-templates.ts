@@ -81,6 +81,7 @@ Sam
       "End with a casual, friendly closing.",
       "Avoid marketing language or anything that sounds templated.",
       "Fill in all bracketed placeholders.",
+      "Do not assume the recipient attended the IEX conference, as we are unsure if they did or not.",
     ],
     subjectLine: "Thoughts after IIEX + [specific_conference_topic]",
     exampleStructure: `

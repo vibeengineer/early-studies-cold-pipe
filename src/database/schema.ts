@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 import type { ApolloContact } from "../services/apollo/schema";
-import type { PersonProfile } from "../services/proxycurl/schemas";
+import type { LinkedinProfile } from "../services/proxycurl/schemas";
 
 export const people = sqliteTable(
   "people",
@@ -16,7 +16,7 @@ export const people = sqliteTable(
       .$type<ApolloContact>()
       .notNull(),
     proxycurlProfileJson: text("proxycurl_profile_json", { mode: "json" })
-      .$type<PersonProfile>()
+      .$type<LinkedinProfile>()
       .notNull(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .default(sql`(strftime('%s', 'now'))`)

@@ -214,4 +214,4 @@ const PersonProfileSchema = z.object({
 
 export default PersonProfileSchema;
 
-export type PersonProfile = z.infer<typeof PersonProfileSchema>;
+export type LinkedinProfile = z.infer<typeof PersonProfileSchema>;

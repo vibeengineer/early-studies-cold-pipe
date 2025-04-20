@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { schema } from "../../database/schema";
 import type { ApolloContact } from "../apollo/schema";
-import type { PersonProfile } from "../proxycurl/schemas";
+import type { LinkedinProfile } from "../proxycurl/schemas";
 
 export async function checkIfPersonWithEmailExistsInDb(email: string, db?: D1Database) {
   const drizzleDb = drizzle(db ?? env.DB, { schema });
@@ -21,7 +21,7 @@ export async function checkIfPersonWithEmailExistsInDb(email: string, db?: D1Dat
   };
 }
 
-export async function addPersonRecordToDB(contact: ApolloContact, profile: PersonProfile) {
+export async function addPersonRecordToDB(contact: ApolloContact, profile: LinkedinProfile) {
   const drizzleDb = drizzle(env.DB, { schema });
   const result = await drizzleDb
     .insert(schema.people)

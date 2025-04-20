@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
-import PersonProfileSchema, { type PersonProfile } from "./schemas";
+import PersonProfileSchema, { type LinkedinProfile } from "./schemas";
 
 export const PROXYCURL_API_BASE = "https://nubela.co/proxycurl/api/v2/linkedin";
 
