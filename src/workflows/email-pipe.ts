@@ -14,18 +14,17 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
   async run(event: WorkflowEvent<EmailPipeParams>, step: WorkflowStep) {
     const { apolloContact, cleanupAfter } = event.payload;
 
-    logger.info("Starting EmailPipeWorkflow", { apolloContact, cleanupAfter });
+    // logger.info("Starting EmailPipeWorkflow", { apolloContact, cleanupAfter });
 
-    // Step 1: Check if headline exists
     const existingEmail = await step.do(
       "check database for existing record",
       {
         retries: {
           limit: 3,
-          delay: "1 second",
+          delay: "10 seconds",
           backoff: "exponential",
         },
-        timeout: "30 seconds",
+        timeout: "2 minutes",
       },
       async () => {}
     );
@@ -35,10 +34,10 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       {
         retries: {
           limit: 3,
-          delay: "5 seconds",
+          delay: "30 seconds",
           backoff: "exponential",
         },
-        timeout: "1 minute",
+        timeout: "30 minutes",
       },
       async () => {
         logger.info("Starting email analysis", { apolloContact, cleanupAfter });
@@ -46,33 +45,15 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       }
     );
 
-    const personRecord = await step.do(
-      "use AI to generate a structured person record",
+    const personalisedEmailOne = await step.do(
+      "use AI to write personalised email one",
       {
         retries: {
-          limit: 3,
-          delay: "1 second",
+          limit: 6,
+          delay: "30 seconds",
           backoff: "exponential",
         },
-        timeout: "30 seconds",
-      },
-      async () => {
-        logger.info("Attempting use gemini ai to generate a structured person record", {
-          apolloContact,
-          cleanupAfter,
-        });
-      }
-    );
-
-    const personalisedEmails = await step.do(
-      "use AI to write personalised emails",
-      {
-        retries: {
-          limit: 3,
-          delay: "1 second",
-          backoff: "exponential",
-        },
-        timeout: "30 seconds",
+        timeout: "30 minutes",
       },
       async () => {
         logger.info("Attempting use gemini ai to write personalised emails", {
@@ -82,18 +63,141 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       }
     );
 
-    const storedInDb = await step.do(
-      "store in database",
+    const personalisedEmailTwo = await step.do(
+      "use AI to write personalised email two",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        logger.info("Attempting use gemini ai to write personalised emails", {
+          apolloContact,
+          cleanupAfter,
+        });
+      }
+    );
+
+    const personalisedEmailThree = await step.do(
+      "use AI to write personalised email three",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        logger.info("Attempting use gemini ai to write personalised emails", {
+          apolloContact,
+          cleanupAfter,
+        });
+      }
+    );
+
+    const personalisedEmailFour = await step.do(
+      "use AI to write personalised email four",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        logger.info("Attempting use gemini ai to write personalised emails", {
+          apolloContact,
+          cleanupAfter,
+        });
+      }
+    );
+
+    const personalisedEmailFive = await step.do(
+      "use AI to write personalised email five",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        logger.info("Attempting use gemini ai to write personalised emails", {
+          apolloContact,
+          cleanupAfter,
+        });
+      }
+    );
+
+    const personalisedEmailSix = await step.do(
+      "use AI to write personalised email six",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        logger.info("Attempting use gemini ai to write personalised emails", {
+          apolloContact,
+          cleanupAfter,
+        });
+      }
+    );
+
+    const storeEmailsInDb = await step.do(
+      "store emails in database",
       {
         retries: {
           limit: 3,
-          delay: "1 second",
+          delay: "2 seconds",
           backoff: "exponential",
         },
         timeout: "30 seconds",
       },
       async () => {
         logger.info("Attempting to store in database", { apolloContact, cleanupAfter });
+      }
+    );
+
+    const updateContactWithEmailsGeneratedStatus = await step.do(
+      "update contact with emails generated status",
+      {
+        retries: {
+          limit: 3,
+          delay: "2 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 seconds",
+      },
+      async () => {
+        logger.info("Attempting to update contact", { apolloContact, cleanupAfter });
+      }
+    );
+
+    const syncContactWithSmartLeadCampaign = await step.do(
+      "sync contact with smart lead campaign",
+      {
+        retries: {
+          limit: 3,
+          delay: "2 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 seconds",
+      },
+      async () => {
+        logger.info("Attempting to sync contact with smart lead campaign", {
+          apolloContact,
+          cleanupAfter,
+        });
       }
     );
   }

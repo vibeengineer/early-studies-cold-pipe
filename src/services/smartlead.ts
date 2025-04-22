@@ -48,16 +48,6 @@ export async function uploadLeadsToSmartlead(
   return uploadLeadsResponseSchema.parse(data);
 }
 
-// curl https://server.smartlead.ai/api/v1/campaigns/create?api_key=${API_KEY}
-// --data { "name": "Test email campaign", "client_id": 22 // leave null if no client }
-
-// {
-//   ok: true,
-//   id: 1812797,
-//   name: 'Untitled Campaign',
-//   created_at: '2025-04-20T22:15:39.750Z'
-// }
-
 const createCampaignResponseSchema = z.object({
   ok: z.boolean(),
   id: z.number(),
