@@ -1,11 +1,11 @@
 import { type Context, Hono } from "hono";
 import z from "zod";
 import "zod-openapi/extend";
-import { describeRoute } from "hono-openapi";
+import { Scalar } from "@scalar/hono-api-reference";
+import { describeRoute, openAPISpecs } from "hono-openapi";
 import { resolver, validator as zValidator } from "hono-openapi/zod";
 import type { Next } from "hono/types";
 import { ApolloContactSchema } from "./services/apollo/schema";
-
 const app = new Hono();
 
 app.get("/", (c) => {
@@ -141,6 +141,33 @@ app.post(
       );
     }
   }
+);
+
+app.get(
+  "/openapi",
+  openAPISpecs(app, {
+    documentation: {
+      info: {
+        title: "Hono",
+        version: "1.0.0",
+        description: "API for greeting users",
+      },
+      servers: [
+        {
+          url: "http://localhost:3000",
+          description: "Local server",
+        },
+      ],
+    },
+  })
+);
+
+app.get(
+  "/docs",
+  Scalar({
+    theme: "saturn",
+    url: "/openapi",
+  })
 );
 
 export default app;
