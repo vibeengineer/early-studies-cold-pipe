@@ -29,8 +29,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {}
     );
 
-    const enrichedEmail = await step.do(
-      "enrich email",
+    const enrichedLinkedinProfile = await step.do(
+      "enrich contact with linkedin profile",
       {
         retries: {
           limit: 3,

@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^1.2.12",
+    "@hono/zod-validator": "^0.4.3",
     "@libsql/client": "^0.15.4",
     "@types/minimist": "^1.2.5",
     "@types/papaparse": "^5.3.15",
@@ -24,12 +25,14 @@
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.42.0",
     "hono": "^4.7.7",
+    "hono-openapi": "^0.4.6",
     "limiter": "^3.0.0",
     "minimist": "^1.2.8",
     "papaparse": "^5.5.2",
     "pino": "^9.6.0",
     "tsx": "^4.19.3",
-    "zod": "^3.24.3"
+    "zod": "^3.24.3",
+    "zod-openapi": "^4.2.4"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
