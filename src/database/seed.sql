@@ -1,9 +1,29 @@
 INSERT INTO campaigns (id, name) VALUES ('wIW3LfIc', 'iiex-conference-north-america');
 
-INSERT INTO people (id, email, linkedin_url, apollo_contact_json, proxycurl_profile_json) VALUES (
+INSERT INTO people (
+  id, 
+  email, 
+  linkedin_url, 
+  firstName,
+  lastName,
+  phoneNumber,
+  companyName,
+  website,
+  location,
+  companyUrl,
+  apollo_contact_json, 
+  proxycurl_profile_json
+) VALUES (
   'v6Zg6rq',
   'jennifer.golotko@fox.com',
   'http://www.linkedin.com/in/jennifergolotko',
+  'Jennifer',
+  'Golotko',
+  '+1 310-369-3921',
+  'Fox News Media',
+  'https://foxnews.com',
+  'New York, New York, United States',
+  'http://www.linkedin.com/company/fox-news-channel',
   '{
     "First Name": "Jennifer",
     "Last Name": "Golotko",
@@ -195,7 +215,6 @@ INSERT INTO people (id, email, linkedin_url, apollo_contact_json, proxycurl_prof
         "title": "Manager, Analytics"
       }
     ],
-    "first_name": "Jennifer",
     "follower_count": 912,
     "full_name": "Jennifer Golotko",
     "groups": [
@@ -211,7 +230,6 @@ INSERT INTO people (id, email, linkedin_url, apollo_contact_json, proxycurl_prof
       }
     ],
     "headline": "Director, Insights & Analytics at Fox News Media | Driving data-informed decision making across media platforms",
-    "last_name": "Golotko",
     "occupation": "Director, Insights & Analytics at Fox News Media",
     "people_also_viewed": [
       {

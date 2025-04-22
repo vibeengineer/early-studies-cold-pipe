@@ -7,6 +7,13 @@ import type { LinkedinProfile } from "../services/proxycurl/schemas";
 export const people = sqliteTable(
   "people",
   {
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    phoneNumber: text("phone_number"),
+    companyName: text("company_name"),
+    website: text("website"),
+    location: text("location"),
+    companyUrl: text("company_url"),
     id: text("id")
       .primaryKey()
       .$defaultFn(() => nanoid(8)),
