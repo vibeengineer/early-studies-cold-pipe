@@ -1,3 +1,7 @@
+import Papa from "papaparse";
+import type { z } from "zod";
+import { type ApolloContact, ApolloContactSchema } from "./services/apollo/schema";
+
 type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
   ? `${T}${Capitalize<SnakeToCamelCase<U>>}`
   : S;
@@ -83,4 +87,80 @@ export function structureObjectWithCustomFields<T extends Record<string, unknown
   }
 
   return result;
+}
+
+/**
+ * Parses a CSV string into an array of ApolloContact objects.
+ * Assumes CSV headers exactly match the keys in ApolloContactSchema.
+ *
+ * @param csvString The CSV content as a string.
+ * @returns A promise that resolves with an array of parsed contacts or rejects with an error.
+ */
+export function parseContactsFromCsv(csvString: string): Promise<ApolloContact[]> {
+  return new Promise((resolve, reject) => {
+    Papa.parse<Record<string, unknown>>(csvString, {
+      header: true, // Use the first row as headers
+      skipEmptyLines: true,
+      transformHeader: (header) => header.trim(), // Trim header whitespace
+      complete: (results) => {
+        if (results.errors.length > 0) {
+          console.error("CSV Parsing Errors:", results.errors);
+          // Reject with the first error message or a generic message
+          return reject(new Error(results.errors[0]?.message || "Failed to parse CSV"));
+        }
+
+        // Validate each row against the schema
+        const validatedContacts: ApolloContact[] = [];
+        const validationErrors: { row: number; errors: z.ZodIssue[] }[] = [];
+
+        results.data.forEach((row, index) => {
+          // Filter out potential empty objects from PapaParse results
+          if (
+            Object.keys(row).length === 0 ||
+            Object.values(row).every((v) => v === "" || v === null || v === undefined)
+          ) {
+            return;
+          }
+          const parsed = ApolloContactSchema.safeParse(row);
+          if (parsed.success) {
+            validatedContacts.push(parsed.data);
+          } else {
+            validationErrors.push({ row: index + 2, errors: parsed.error.issues }); // +2 because of header row and 0-based index
+          }
+        });
+
+        if (validationErrors.length > 0) {
+          console.error("CSV Validation Errors:", JSON.stringify(validationErrors, null, 2));
+          // Optionally reject if validation fails, or return partially valid data
+          // Here, we'll reject with a summary of validation errors
+          return reject(
+            new Error(
+              `CSV validation failed for ${
+                validationErrors.length
+              } row(s): ${validationErrors.map((e) => `Row ${e.row}`).join(", ")}. Check server console for details.`
+            )
+          );
+        }
+
+        if (
+          validatedContacts.length === 0 &&
+          results.data.length > 0 &&
+          validationErrors.length === 0
+        ) {
+          // This case implies successful parsing but no rows passed validation or all rows were effectively empty
+          return reject(
+            new Error(
+              "CSV parsing resulted in zero valid contacts. Ensure the file is not empty and headers/content match the expected format."
+            )
+          );
+        }
+
+        resolve(validatedContacts);
+      },
+      error: (error: Error) => {
+        console.error("CSV Parsing Failed:", error);
+        reject(error);
+      },
+    });
+  });
 }
