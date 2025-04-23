@@ -5,7 +5,7 @@ import { Scalar } from "@scalar/hono-api-reference";
 import { describeRoute, openAPISpecs } from "hono-openapi";
 import { resolver, validator as zValidator } from "hono-openapi/zod";
 import type { Next } from "hono/types";
-import { ApolloContactSchema } from "./services/apollo/schema";
+import type { ApolloContact } from "./services/apollo/schema";
 import { parseContactsFromCsv } from "./utils";
 
 const app = new Hono();
@@ -246,7 +246,7 @@ app.get(
       },
       servers: [
         {
-          url: "http://localhost:3000",
+          url: "http://localhost:8787",
           description: "Local server",
         },
       ],
@@ -262,4 +262,20 @@ app.get(
   })
 );
 
-export default app;
+export default {
+  port: 8787,
+  fetch: app.fetch,
+  async queue(
+    batch: MessageBatch<
+      {
+        contact: ApolloContact;
+        campaignId: string;
+      }[]
+    >,
+    env: Env
+  ) {
+    for (const message of batch.messages) {
+      console.log(message.body, "message body");
+    }
+  },
+};
