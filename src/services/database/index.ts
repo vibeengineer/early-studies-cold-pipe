@@ -56,6 +56,19 @@ export async function createCampaign(name: string) {
   };
 }
 
+export async function getCampaignByName(name: string) {
+  const drizzleDb = drizzle(env.DB, { schema });
+  const result = await drizzleDb.query.campaigns.findFirst({
+    where: eq(schema.campaigns.name, name),
+  });
+
+  return {
+    data: result,
+    success: true,
+    error: null,
+  };
+}
+
 export async function deletePerson(email: string) {
   const drizzleDb = drizzle(env.DB, { schema });
   await drizzleDb.delete(schema.people).where(eq(schema.people.email, email));

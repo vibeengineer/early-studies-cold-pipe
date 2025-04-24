@@ -1,20 +1,46 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { generateEmail } from "../services/ai";
 import type { ApolloContact } from "../services/apollo/schema";
-import { checkIfPersonWithEmailExistsInDb } from "../services/database";
+import {
+  checkIfPersonWithEmailExistsInDb,
+  createCampaign,
+  getCampaignByName,
+} from "../services/database";
 import { logger } from "../services/logger";
 import { fetchPersonProfile } from "../services/proxycurl";
-import { uploadLeadsToSmartlead } from "../services/smartlead";
+import {
+  createCampaign as createSmartleadCampaign,
+  uploadLeadsToSmartlead,
+} from "../services/smartlead";
 
 export type EmailPipeParams = {
   apolloContact: ApolloContact;
-  campaignId: string;
+  campaignName: string;
   contactEmail: string;
 };
 
 export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> {
   async run(event: WorkflowEvent<EmailPipeParams>, step: WorkflowStep) {
-    const { apolloContact, campaignId, contactEmail } = event.payload;
+    const { apolloContact, campaignName, contactEmail } = event.payload;
+
+    const upsertSmartleadCampaign = await step.do(
+      "check db for campaign, if it does not exist create within db and smart lead",
+      {
+        retries: {
+          limit: 3,
+          delay: "10 seconds",
+          backoff: "exponential",
+        },
+        timeout: "2 minutes",
+      },
+      async () => {
+        const campaign = await getCampaignByName(campaignName);
+        if (!campaign.data) {
+          await createCampaign(campaignName);
+          await createSmartleadCampaign(campaignName);
+        }
+      }
+    );
 
     const existingEmail = await step.do(
       "check database for existing record",
@@ -31,7 +57,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         if (result.data.exists) {
           logger.info("Person with email already exists in database", {
             apolloContact,
-            campaignId,
+            campaignName,
             contactEmail,
           });
           return {
@@ -74,7 +100,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
           };
         }
 
-        logger.info("Starting email analysis", { apolloContact, campaignId, contactEmail });
+        logger.info("Starting email analysis", { apolloContact, campaignName, contactEmail });
         const result = await fetchPersonProfile(apolloContact.Email);
 
         return {
@@ -108,7 +134,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
 
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          campaignId,
+          campaignName,
           contactEmail,
         });
 
@@ -145,7 +171,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
 
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          campaignId,
+          campaignName,
           contactEmail,
         });
         const result = await generateEmail(apolloContact, 2, enrichedLinkedinProfile.data, [
@@ -190,7 +216,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         }
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          campaignId,
+          campaignName,
           contactEmail,
         });
         const result = await generateEmail(apolloContact, 3, enrichedLinkedinProfile.data, [
@@ -240,7 +266,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         }
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          campaignId,
+          campaignName,
           contactEmail,
         });
         const result = await generateEmail(apolloContact, 4, enrichedLinkedinProfile.data, [
@@ -293,7 +319,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         }
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          campaignId,
+          campaignName,
           contactEmail,
         });
         const result = await generateEmail(apolloContact, 5, enrichedLinkedinProfile.data, [
@@ -348,7 +374,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         }
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          campaignId,
+          campaignName,
           contactEmail,
         });
         const result = await generateEmail(apolloContact, 6, enrichedLinkedinProfile.data, [
@@ -403,7 +429,11 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
             shouldEndWorkflow: true,
           };
         }
-        logger.info("Attempting to store in database", { apolloContact, campaignId, contactEmail });
+        logger.info("Attempting to store in database", {
+          apolloContact,
+          campaignName,
+          contactEmail,
+        });
         return {
           data: "other",
           success: true,
@@ -430,7 +460,11 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
             error: null,
             shouldEndWorkflow: true,
           };
-        logger.info("Attempting to update contact", { apolloContact, campaignId, contactEmail });
+        logger.info("Attempting to update contact", {
+          apolloContact,
+          campaignName,
+          contactEmail,
+        });
         return {
           data: "other",
           success: true,
@@ -463,13 +497,14 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
           return {
             data: null,
             success: true,
+            shouldEndWorkflow: true,
           };
         logger.info("Attempting to sync contact with smart lead campaign", {
           apolloContact,
-          campaignId,
+          campaignName,
           contactEmail,
         });
-        await uploadLeadsToSmartlead(campaignId, [
+        await uploadLeadsToSmartlead(campaignName, [
           {
             ...apolloContact,
             ...(enrichedLinkedinProfile.data || {}),
@@ -488,6 +523,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
             state: enrichedLinkedinProfile.data?.state ?? null,
             summary: enrichedLinkedinProfile.data?.summary ?? null,
             follower_count: enrichedLinkedinProfile.data?.follower_count ?? null,
+            connections: enrichedLinkedinProfile.data?.connections ?? null,
             accomplishment_courses: enrichedLinkedinProfile.data?.accomplishment_courses ?? [],
             accomplishment_honors_awards:
               enrichedLinkedinProfile.data?.accomplishment_honors_awards ?? [],
@@ -502,10 +538,6 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
             activities: enrichedLinkedinProfile.data?.activities ?? [],
             articles: enrichedLinkedinProfile.data?.articles ?? [],
             certifications: enrichedLinkedinProfile.data?.certifications ?? [],
-            connections:
-              enrichedLinkedinProfile.data?.connections === undefined
-                ? null
-                : enrichedLinkedinProfile.data?.connections,
             education: enrichedLinkedinProfile.data?.education ?? [],
             experiences: enrichedLinkedinProfile.data?.experiences ?? [],
             groups: enrichedLinkedinProfile.data?.groups ?? [],
