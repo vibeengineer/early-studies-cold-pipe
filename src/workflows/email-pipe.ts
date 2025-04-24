@@ -472,7 +472,48 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         await uploadLeadsToSmartlead(campaignId, [
           {
             ...apolloContact,
-            ...enrichedLinkedinProfile.data,
+            ...(enrichedLinkedinProfile.data || {}),
+            background_cover_image_url:
+              enrichedLinkedinProfile.data?.background_cover_image_url ?? null,
+            city: enrichedLinkedinProfile.data?.city ?? null,
+            country: enrichedLinkedinProfile.data?.country ?? null,
+            country_full_name: enrichedLinkedinProfile.data?.country_full_name ?? null,
+            first_name: enrichedLinkedinProfile.data?.first_name ?? null,
+            full_name: enrichedLinkedinProfile.data?.full_name ?? null,
+            headline: enrichedLinkedinProfile.data?.headline ?? null,
+            last_name: enrichedLinkedinProfile.data?.last_name ?? null,
+            occupation: enrichedLinkedinProfile.data?.occupation ?? null,
+            profile_pic_url: enrichedLinkedinProfile.data?.profile_pic_url ?? null,
+            public_identifier: enrichedLinkedinProfile.data?.public_identifier ?? null,
+            state: enrichedLinkedinProfile.data?.state ?? null,
+            summary: enrichedLinkedinProfile.data?.summary ?? null,
+            follower_count: enrichedLinkedinProfile.data?.follower_count ?? null,
+            accomplishment_courses: enrichedLinkedinProfile.data?.accomplishment_courses ?? [],
+            accomplishment_honors_awards:
+              enrichedLinkedinProfile.data?.accomplishment_honors_awards ?? [],
+            accomplishment_organisations:
+              enrichedLinkedinProfile.data?.accomplishment_organisations ?? [],
+            accomplishment_patents: enrichedLinkedinProfile.data?.accomplishment_patents ?? [],
+            accomplishment_projects: enrichedLinkedinProfile.data?.accomplishment_projects ?? [],
+            accomplishment_publications:
+              enrichedLinkedinProfile.data?.accomplishment_publications ?? [],
+            accomplishment_test_scores:
+              enrichedLinkedinProfile.data?.accomplishment_test_scores ?? [],
+            activities: enrichedLinkedinProfile.data?.activities ?? [],
+            articles: enrichedLinkedinProfile.data?.articles ?? [],
+            certifications: enrichedLinkedinProfile.data?.certifications ?? [],
+            connections:
+              enrichedLinkedinProfile.data?.connections === undefined
+                ? null
+                : enrichedLinkedinProfile.data?.connections,
+            education: enrichedLinkedinProfile.data?.education ?? [],
+            experiences: enrichedLinkedinProfile.data?.experiences ?? [],
+            groups: enrichedLinkedinProfile.data?.groups ?? [],
+            people_also_viewed: enrichedLinkedinProfile.data?.people_also_viewed ?? [],
+            recommendations: enrichedLinkedinProfile.data?.recommendations ?? [],
+            similarly_named_profiles: enrichedLinkedinProfile.data?.similarly_named_profiles ?? [],
+            skills: enrichedLinkedinProfile.data?.skills ?? [],
+            volunteer_work: enrichedLinkedinProfile.data?.volunteer_work ?? [],
             email1: personalisedEmailOne.data,
             email2: personalisedEmailTwo.data,
             email3: personalisedEmailThree.data,
