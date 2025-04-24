@@ -4,6 +4,30 @@ import PersonProfileSchema, { type LinkedinProfile } from "./schemas";
 
 export const PROXYCURL_API_BASE = "https://nubela.co/proxycurl/api/v2/linkedin";
 
+const creditBalanceResponseSchema = z.object({
+  credit_balance: z.number(),
+});
+
+export async function getProxycurlCreditBalance() {
+  const response = await fetch("https://nubela.co/proxycurl/api/credit-balance", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${env.PROXYCURL_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Proxycurl API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  const validatedData = creditBalanceResponseSchema.parse(data);
+
+  return validatedData.credit_balance;
+}
+
 export async function fetchPersonProfile(linkedinProfileUrl: string) {
   try {
     z.string().url().parse(linkedinProfileUrl);

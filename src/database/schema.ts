@@ -19,12 +19,13 @@ export const people = sqliteTable(
       .$defaultFn(() => nanoid(8)),
     email: text("email").notNull(),
     linkedinUrl: text("linkedin_url").notNull(),
+    emailsWritten: integer("emails_written", { mode: "boolean" }).default(false),
+    linkedinProfileFetched: integer("linkedin_profile_fetched", { mode: "boolean" }).default(false),
+    syncedToSmartlead: integer("synced_to_smartlead", { mode: "boolean" }).default(false),
     apolloContactJson: text("apollo_contact_json", { mode: "json" })
       .$type<ApolloContact>()
       .notNull(),
-    proxycurlProfileJson: text("proxycurl_profile_json", { mode: "json" })
-      .$type<LinkedinProfile>()
-      .notNull(),
+    proxycurlProfileJson: text("proxycurl_profile_json", { mode: "json" }).$type<LinkedinProfile>(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .default(sql`(strftime('%s', 'now'))`)
       .notNull(),
@@ -37,18 +38,27 @@ export const people = sqliteTable(
   })
 );
 
-export const campaigns = sqliteTable("campaigns", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => nanoid(8)),
-  name: text("name").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .$onUpdate(() => sql`(strftime('%s', 'now'))`),
-});
+export const campaigns = sqliteTable(
+  "campaigns",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => nanoid(8)),
+    name: text("name").notNull(),
+    smartleadCampaignId: integer("smartlead_campaign_id").unique(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .default(sql`(strftime('%s', 'now'))`)
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .default(sql`(strftime('%s', 'now'))`)
+      .$onUpdate(() => sql`(strftime('%s', 'now'))`),
+  },
+  (table) => ({
+    smartleadCampaignIdIdx: index("campaigns_smartlead_campaign_id_idx").on(
+      table.smartleadCampaignId
+    ),
+  })
+);
 
 export const emails = sqliteTable(
   "emails",

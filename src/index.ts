@@ -60,8 +60,8 @@ export function createAuthMiddleware() {
 
 // Define the schema for the multipart/form-data request
 const ContactQueueFormSchema = z.object({
-  campaignName: z.string().openapi({
-    description: "The name of the campaign to associate the contacts with.",
+  campaignId: z.string().openapi({
+    description: "The id of the campaign to associate the contacts with.",
     example: "campaign_123",
   }),
   contactsFile: z
@@ -146,7 +146,7 @@ app.post(
   }),
   zValidator("form", ContactQueueFormSchema), // Changed to "form" validator
   async (c) => {
-    const { contactsFile, campaignName } = c.req.valid("form");
+    const { contactsFile, campaignId } = c.req.valid("form");
 
     try {
       const csvString = await contactsFile.text();
@@ -178,7 +178,7 @@ app.post(
         const messages = batchContacts.map((contact) => ({
           // NOTE: Message body size limits apply (default 128 KB)
           // Pass the raw object; Cloudflare handles serialization for JSON content type
-          body: { contact, campaignName, contactEmail: contact.Email },
+          body: { contact, campaignId, contactEmail: contact.Email },
           // We are delaying between batches, so individual message delays might not be needed
           // delaySeconds: Optional delay per message within the batch if needed
         }));
@@ -192,7 +192,7 @@ app.post(
           console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} sent successfully.`);
         } catch (batchError) {
           console.error(
-            `Failed to send batch starting at index ${i} for campaign ${campaignName}:`,
+            `Failed to send batch starting at index ${i} for campaign ${campaignId}:`,
             batchError
           );
           failedToQueueCount += messages.length; // Assume whole batch failed if sendBatch throws
@@ -206,7 +206,7 @@ app.post(
       }
 
       console.log(
-        `Finished queueing for campaign ${campaignName}. Success: ${successfullyQueuedCount}, Failed: ${failedToQueueCount}`
+        `Finished queueing for campaign ${campaignId}. Success: ${successfullyQueuedCount}, Failed: ${failedToQueueCount}`
       );
 
       if (failedToQueueCount > 0) {
@@ -237,7 +237,7 @@ app.post(
         error: null,
       });
     } catch (error: unknown) {
-      console.error(`Error processing contact queue request for campaign ${campaignName}:`, error);
+      console.error(`Error processing contact queue request for campaign ${campaignId}:`, error);
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
 
       // Distinguish between parsing/validation errors (Bad Request) and other errors (Internal Server Error)

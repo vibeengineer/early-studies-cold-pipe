@@ -1,30 +1,51 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
-import { generateEmail } from "../services/ai";
-import type { ApolloContact } from "../services/apollo/schema";
+import { NonRetryableError } from "cloudflare:workflows";
+import { a } from "vitest/dist/chunks/suite.d.FvehnV49.js";
+import { z } from "zod";
+import { emails } from "../database/schema";
+import { generateAllEmails, generateEmail } from "../services/ai";
+import { type ApolloContact, ApolloContactSchema } from "../services/apollo/schema";
 import {
+  addPersonRecordToDB,
   checkIfPersonWithEmailExistsInDb,
-  createCampaign,
-  getCampaignByName,
+  createEmails,
+  updatePersonRecordInDB,
 } from "../services/database";
+import { getCampaignById } from "../services/database";
 import { logger } from "../services/logger";
-import { fetchPersonProfile } from "../services/proxycurl";
+import { fetchPersonProfile, getProxycurlCreditBalance } from "../services/proxycurl";
 import {
   createCampaign as createSmartleadCampaign,
+  getCampaign as getSmartleadCampaign,
   uploadLeadsToSmartlead,
 } from "../services/smartlead";
 
 export type EmailPipeParams = {
-  apolloContact: ApolloContact;
-  campaignName: string;
+  contact: ApolloContact;
   contactEmail: string;
+  campaignId: string;
 };
+
+const workflowSchema = z.object({
+  contact: ApolloContactSchema,
+  contactEmail: z.string(),
+  campaignId: z.string(),
+});
 
 export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> {
   async run(event: WorkflowEvent<EmailPipeParams>, step: WorkflowStep) {
-    const { apolloContact, campaignName, contactEmail } = event.payload;
+    const { contact, contactEmail, campaignId } = event.payload;
 
-    const upsertSmartleadCampaign = await step.do(
-      "check db for campaign, if it does not exist create within db and smart lead",
+    await step.do("validates all parameters and throws non retryable if missing", async () => {
+      const result = workflowSchema.safeParse(event.payload);
+      if (!result.success) {
+        logger.error("Invalid parameters ending workflow", { error: result.error });
+        throw new NonRetryableError("Invalid parameters");
+      }
+    });
+
+    const campaign = await step.do(
+      "checks the db and smartlead for a campaign id",
       {
         retries: {
           limit: 3,
@@ -34,15 +55,28 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "2 minutes",
       },
       async () => {
-        const campaign = await getCampaignByName(campaignName);
-        if (!campaign.data) {
-          await createCampaign(campaignName);
-          await createSmartleadCampaign(campaignName);
+        const [campaign, smartleadCampaign] = await Promise.all([
+          getCampaignById(campaignId),
+          getSmartleadCampaign(campaignId),
+        ]);
+
+        if (
+          !campaign.data ||
+          !smartleadCampaign.data ||
+          campaign.data.smartleadCampaignId !== smartleadCampaign.data.id
+        ) {
+          logger.error("Campaign not found ending workflow");
+          throw new NonRetryableError("Campaign not found");
         }
+
+        return {
+          smartleadCampaignId: smartleadCampaign.data.id,
+          dbCampaignId: campaign.data.id,
+        };
       }
     );
 
-    const existingEmail = await step.do(
+    const contactRecord = await step.do(
       "check database for existing record",
       {
         retries: {
@@ -53,35 +87,36 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "2 minutes",
       },
       async () => {
-        const result = await checkIfPersonWithEmailExistsInDb(contactEmail);
-        if (result.data.exists) {
-          logger.info("Person with email already exists in database", {
-            apolloContact,
-            campaignName,
-            contactEmail,
-          });
-          return {
-            data: {
-              exists: true,
-            },
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
+        const { data } = await checkIfPersonWithEmailExistsInDb(contactEmail);
+
+        if (data.exists) {
+          if (!data.person) throw new NonRetryableError("Should never happen");
+          if (
+            data.person.syncedToSmartlead &&
+            data.person.linkedinProfileFetched &&
+            data.person.emailsWritten
+          ) {
+            logger.info(
+              "Contact already synced to smartlead and has linkedin profile and emails written",
+              {
+                contactId: data.person.id,
+              }
+            );
+            throw new NonRetryableError(
+              "Contact already synced to smartlead and has linkedin profile and emails written"
+            );
+          }
+          return data.person;
         }
-        return {
-          data: {
-            exists: false,
-          },
-          success: true,
-          error: null,
-          shouldEndWorkflow: false,
-        };
+
+        const person = await addPersonRecordToDB(contact);
+
+        return person.data;
       }
     );
 
-    const enrichedLinkedinProfile = await step.do(
-      "enrich contact with linkedin profile",
+    const linkedInProfile = await step.do(
+      "enrich contact with linkedin profile or return existing profile",
       {
         retries: {
           limit: 3,
@@ -91,29 +126,28 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 minutes",
       },
       async () => {
-        if (existingEmail.shouldEndWorkflow) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
+        if (contactRecord.linkedinProfileFetched && contactRecord.proxycurlProfileJson) {
+          return contactRecord.proxycurlProfileJson;
         }
 
-        logger.info("Starting email analysis", { apolloContact, campaignName, contactEmail });
-        const result = await fetchPersonProfile(apolloContact.Email);
+        const creditBalance = await getProxycurlCreditBalance();
 
-        return {
-          data: result.data,
-          success: true,
-          error: null,
-          shouldEndWorkflow: false as const,
-        };
+        if (creditBalance <= 0) {
+          return null;
+        }
+
+        const result = await fetchPersonProfile(contact["Person Linkedin Url"]);
+        await updatePersonRecordInDB(contactRecord.id, {
+          proxycurlProfileJson: result.data,
+          linkedinProfileFetched: true,
+        });
+
+        return result.data;
       }
     );
 
-    const personalisedEmailOne = await step.do(
-      "use AI to write personalised email one",
+    const personalisedEmails = await step.do(
+      "use AI to write personalised emails",
       {
         retries: {
           limit: 6,
@@ -123,354 +157,22 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 minutes",
       },
       async () => {
-        if (enrichedLinkedinProfile.shouldEndWorkflow) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true as const,
-          };
-        }
+        const result = await generateAllEmails(
+          contact,
+          linkedInProfile ? linkedInProfile : undefined
+        );
 
-        logger.info("Attempting use gemini ai to write personalised emails", {
-          apolloContact,
-          campaignName,
-          contactEmail,
+        if (!result.data || result.error) throw new Error("Failed to generate emails");
+
+        const { data: emails, success } = await createEmails(result.data, campaign.dbCampaignId);
+
+        if (!success) throw new Error("Failed to create emails");
+
+        await updatePersonRecordInDB(contactRecord.id, {
+          emailsWritten: true,
         });
 
-        const result = await generateEmail(apolloContact, 1, enrichedLinkedinProfile.data, []);
-
-        return {
-          data: result.data,
-          success: true,
-          error: null,
-          shouldEndWorkflow: false as const,
-        };
-      }
-    );
-
-    const personalisedEmailTwo = await step.do(
-      "use AI to write personalised email two",
-      {
-        retries: {
-          limit: 6,
-          delay: "30 seconds",
-          backoff: "exponential",
-        },
-        timeout: "30 minutes",
-      },
-      async () => {
-        if (personalisedEmailOne.shouldEndWorkflow) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
-        }
-
-        logger.info("Attempting use gemini ai to write personalised emails", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        const result = await generateEmail(apolloContact, 2, enrichedLinkedinProfile.data, [
-          personalisedEmailOne.data,
-        ]);
-
-        if (!result.success) {
-          logger.error("Error generating email", { error: result.error });
-          return {
-            data: null,
-            success: false,
-            error: result.error,
-            shouldEndWorkflow: true as const,
-          };
-        }
-        return {
-          data: result.data,
-          success: true,
-          error: null,
-          shouldEndWorkflow: false as const,
-        };
-      }
-    );
-    const personalisedEmailThree = await step.do(
-      "use AI to write personalised email three",
-      {
-        retries: {
-          limit: 6,
-          delay: "30 seconds",
-          backoff: "exponential",
-        },
-        timeout: "30 minutes",
-      },
-      async () => {
-        if (personalisedEmailTwo.shouldEndWorkflow || !personalisedEmailOne.data) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
-        }
-        logger.info("Attempting use gemini ai to write personalised emails", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        const result = await generateEmail(apolloContact, 3, enrichedLinkedinProfile.data, [
-          personalisedEmailOne.data,
-          personalisedEmailTwo.data,
-        ]);
-        if (!result.success) {
-          logger.error("Error generating email", { error: result.error });
-          return {
-            data: null,
-            success: false,
-            error: result.error,
-            shouldEndWorkflow: false,
-          };
-        }
-        return {
-          data: result.data,
-          success: true,
-          error: null,
-          shouldEndWorkflow: false,
-        };
-      }
-    );
-    const personalisedEmailFour = await step.do(
-      "use AI to write personalised email four",
-      {
-        retries: {
-          limit: 6,
-          delay: "30 seconds",
-          backoff: "exponential",
-        },
-        timeout: "30 minutes",
-      },
-      async () => {
-        if (
-          personalisedEmailThree.shouldEndWorkflow ||
-          !personalisedEmailOne.data ||
-          !personalisedEmailTwo.data ||
-          !personalisedEmailThree.data
-        ) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
-        }
-        logger.info("Attempting use gemini ai to write personalised emails", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        const result = await generateEmail(apolloContact, 4, enrichedLinkedinProfile.data, [
-          personalisedEmailOne.data,
-          personalisedEmailTwo.data,
-          personalisedEmailThree.data,
-        ]);
-        if (!result.success) {
-          logger.error("Error generating email", { error: result.error });
-          return {
-            data: null,
-            success: false,
-            error: result.error,
-            shouldEndWorkflow: false,
-          };
-        }
-        return {
-          data: result.data,
-          success: true,
-          error: null,
-          shouldEndWorkflow: false as const,
-        };
-      }
-    );
-
-    const personalisedEmailFive = await step.do(
-      "use AI to write personalised email five",
-      {
-        retries: {
-          limit: 6,
-          delay: "30 seconds",
-          backoff: "exponential",
-        },
-        timeout: "30 minutes",
-      },
-      async () => {
-        if (
-          personalisedEmailFour.shouldEndWorkflow ||
-          !personalisedEmailOne.data ||
-          !personalisedEmailTwo.data ||
-          !personalisedEmailThree.data ||
-          !personalisedEmailFour.data
-        ) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
-        }
-        logger.info("Attempting use gemini ai to write personalised emails", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        const result = await generateEmail(apolloContact, 5, enrichedLinkedinProfile.data, [
-          personalisedEmailOne.data,
-          personalisedEmailTwo.data,
-          personalisedEmailThree.data,
-          personalisedEmailFour.data,
-        ]);
-        if (!result.success) {
-          logger.error("Error generating email", { error: result.error });
-          return {
-            data: null,
-            success: false,
-            error: result.error,
-            shouldEndWorkflow: false,
-          };
-        }
-        return {
-          data: result.data,
-          success: true,
-          error: null,
-          shouldEndWorkflow: false as const,
-        };
-      }
-    );
-
-    const personalisedEmailSix = await step.do(
-      "use AI to write personalised email six",
-      {
-        retries: {
-          limit: 6,
-          delay: "30 seconds",
-          backoff: "exponential",
-        },
-        timeout: "30 minutes",
-      },
-      async () => {
-        if (
-          personalisedEmailFive.shouldEndWorkflow ||
-          !personalisedEmailOne.data ||
-          !personalisedEmailTwo.data ||
-          !personalisedEmailThree.data ||
-          !personalisedEmailFour.data ||
-          !personalisedEmailFive.data
-        ) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
-        }
-        logger.info("Attempting use gemini ai to write personalised emails", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        const result = await generateEmail(apolloContact, 6, enrichedLinkedinProfile.data, [
-          personalisedEmailOne.data,
-          personalisedEmailTwo.data,
-          personalisedEmailThree.data,
-          personalisedEmailFour.data,
-          personalisedEmailFive.data,
-        ]);
-        if (!result.success) {
-          logger.error("Error generating email", { error: result.error });
-          return {
-            data: null,
-            success: false,
-            error: result.error,
-            shouldEndWorkflow: false,
-          };
-        }
-        return {
-          data: result.data,
-          success: true,
-          error: null,
-          shouldEndWorkflow: false as const,
-        };
-      }
-    );
-
-    const storeEmailsInDb = await step.do(
-      "store emails in database",
-      {
-        retries: {
-          limit: 3,
-          delay: "2 seconds",
-          backoff: "exponential",
-        },
-        timeout: "30 seconds",
-      },
-      async () => {
-        if (
-          personalisedEmailSix.shouldEndWorkflow ||
-          !personalisedEmailOne.data ||
-          !personalisedEmailTwo.data ||
-          !personalisedEmailThree.data ||
-          !personalisedEmailFour.data ||
-          !personalisedEmailFive.data ||
-          !personalisedEmailSix.data
-        ) {
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
-        }
-        logger.info("Attempting to store in database", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        return {
-          data: "other",
-          success: true,
-          error: null,
-          shouldEndWorkflow: false,
-        };
-      }
-    );
-    const updateContactWithEmailsGeneratedStatus = await step.do(
-      "update contact with emails generated status",
-      {
-        retries: {
-          limit: 3,
-          delay: "2 seconds",
-          backoff: "exponential",
-        },
-        timeout: "30 seconds",
-      },
-      async () => {
-        if (storeEmailsInDb.shouldEndWorkflow)
-          return {
-            data: null,
-            success: true,
-            error: null,
-            shouldEndWorkflow: true,
-          };
-        logger.info("Attempting to update contact", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        return {
-          data: "other",
-          success: true,
-          error: null,
-          shouldEndWorkflow: false,
-        };
+        return emails;
       }
     );
 
@@ -485,81 +187,36 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 seconds",
       },
       async () => {
-        if (
-          updateContactWithEmailsGeneratedStatus.shouldEndWorkflow ||
-          !personalisedEmailOne.data ||
-          !personalisedEmailTwo.data ||
-          !personalisedEmailThree.data ||
-          !personalisedEmailFour.data ||
-          !personalisedEmailFive.data ||
-          !personalisedEmailSix.data
-        )
-          return {
-            data: null,
-            success: true,
-            shouldEndWorkflow: true,
-          };
-        logger.info("Attempting to sync contact with smart lead campaign", {
-          apolloContact,
-          campaignName,
-          contactEmail,
-        });
-        await uploadLeadsToSmartlead(campaignName, [
+        await uploadLeadsToSmartlead(campaign.smartleadCampaignId, [
           {
-            ...apolloContact,
-            ...(enrichedLinkedinProfile.data || {}),
-            background_cover_image_url:
-              enrichedLinkedinProfile.data?.background_cover_image_url ?? null,
-            city: enrichedLinkedinProfile.data?.city ?? null,
-            country: enrichedLinkedinProfile.data?.country ?? null,
-            country_full_name: enrichedLinkedinProfile.data?.country_full_name ?? null,
-            first_name: enrichedLinkedinProfile.data?.first_name ?? null,
-            full_name: enrichedLinkedinProfile.data?.full_name ?? null,
-            headline: enrichedLinkedinProfile.data?.headline ?? null,
-            last_name: enrichedLinkedinProfile.data?.last_name ?? null,
-            occupation: enrichedLinkedinProfile.data?.occupation ?? null,
-            profile_pic_url: enrichedLinkedinProfile.data?.profile_pic_url ?? null,
-            public_identifier: enrichedLinkedinProfile.data?.public_identifier ?? null,
-            state: enrichedLinkedinProfile.data?.state ?? null,
-            summary: enrichedLinkedinProfile.data?.summary ?? null,
-            follower_count: enrichedLinkedinProfile.data?.follower_count ?? null,
-            connections: enrichedLinkedinProfile.data?.connections ?? null,
-            accomplishment_courses: enrichedLinkedinProfile.data?.accomplishment_courses ?? [],
-            accomplishment_honors_awards:
-              enrichedLinkedinProfile.data?.accomplishment_honors_awards ?? [],
-            accomplishment_organisations:
-              enrichedLinkedinProfile.data?.accomplishment_organisations ?? [],
-            accomplishment_patents: enrichedLinkedinProfile.data?.accomplishment_patents ?? [],
-            accomplishment_projects: enrichedLinkedinProfile.data?.accomplishment_projects ?? [],
-            accomplishment_publications:
-              enrichedLinkedinProfile.data?.accomplishment_publications ?? [],
-            accomplishment_test_scores:
-              enrichedLinkedinProfile.data?.accomplishment_test_scores ?? [],
-            activities: enrichedLinkedinProfile.data?.activities ?? [],
-            articles: enrichedLinkedinProfile.data?.articles ?? [],
-            certifications: enrichedLinkedinProfile.data?.certifications ?? [],
-            education: enrichedLinkedinProfile.data?.education ?? [],
-            experiences: enrichedLinkedinProfile.data?.experiences ?? [],
-            groups: enrichedLinkedinProfile.data?.groups ?? [],
-            people_also_viewed: enrichedLinkedinProfile.data?.people_also_viewed ?? [],
-            recommendations: enrichedLinkedinProfile.data?.recommendations ?? [],
-            similarly_named_profiles: enrichedLinkedinProfile.data?.similarly_named_profiles ?? [],
-            skills: enrichedLinkedinProfile.data?.skills ?? [],
-            volunteer_work: enrichedLinkedinProfile.data?.volunteer_work ?? [],
-            email1: personalisedEmailOne.data,
-            email2: personalisedEmailTwo.data,
-            email3: personalisedEmailThree.data,
-            email4: personalisedEmailFour.data,
-            email5: personalisedEmailFive.data,
-            email6: personalisedEmailSix.data,
+            first_name: contact["First Name"],
+            last_name: contact["Last Name"],
+            email: contactEmail,
+            phone_number: contact["Mobile Phone"],
+            company_name: contact["Company Name for Emails"],
+            location: contact.City,
+            custom_fields: {
+              emailOneSubject: personalisedEmails[0].subject,
+              emailOneMessage: personalisedEmails[0].message,
+              emailTwoSubject: personalisedEmails[1].subject,
+              emailTwoMessage: personalisedEmails[1].message,
+              emailThreeSubject: personalisedEmails[2].subject,
+              emailThreeMessage: personalisedEmails[2].message,
+              emailFourSubject: personalisedEmails[3].subject,
+              emailFourMessage: personalisedEmails[3].message,
+              emailFiveSubject: personalisedEmails[4].subject,
+              emailFiveMessage: personalisedEmails[4].message,
+              emailSixSubject: personalisedEmails[5].subject,
+              emailSixMessage: personalisedEmails[5].message,
+            },
+            linkedin_profile: contact["Person Linkedin Url"],
+            company_url: contact.Website,
           },
         ]);
-        return {
-          data: "other",
-          success: true,
-          error: null,
-          shouldEndWorkflow: false,
-        };
+
+        await updatePersonRecordInDB(contactRecord.id, {
+          syncedToSmartlead: true,
+        });
       }
     );
   }
