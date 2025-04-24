@@ -149,14 +149,10 @@ app.post(
     const { contactsFile, campaignId } = c.req.valid("form");
 
     try {
-      // Read file content
       const csvString = await contactsFile.text();
-
-      // Parse CSV
-      const contacts = await parseContactsFromCsv(csvString); // Use the utility
+      const contacts = await parseContactsFromCsv(csvString);
 
       if (contacts.length === 0) {
-        // This case is now typically handled by the parser rejecting, but kept as a fallback
         return c.json(
           {
             success: false as const,
@@ -168,40 +164,75 @@ app.post(
         );
       }
 
-      // Queue each contact
-      // Consider batching if the queue supports it for better performance
-      const queuePromises = contacts.map((contact) =>
-        c.env.QUEUE.send(JSON.stringify({ contact, campaignId }))
-      );
+      const BATCH_SIZE = 100; // Process 100 contacts per batch
+      const INTER_BATCH_DELAY_MS = 500; // 0.5 second delay between batches
 
-      // Wait for all queue operations (optional, depending on desired behavior)
-      // Using Promise.allSettled to handle potential individual failures
-      const results = await Promise.allSettled(queuePromises);
+      let successfullyQueuedCount = 0;
+      let failedToQueueCount = 0;
+      const totalContacts = contacts.length;
 
-      const successfulQueues = results.filter((r) => r.status === "fulfilled").length;
-      const failedQueues = results.length - successfulQueues;
+      console.log(`Starting to queue ${totalContacts} contacts in batches of ${BATCH_SIZE}...`);
 
-      if (failedQueues > 0) {
-        console.error(
-          `Failed to queue ${failedQueues} out of ${results.length} contacts for campaign ${campaignId}.`
-        );
-        // Decide if this should be a partial success or full failure
-        // Returning partial success here
-        return c.json({
-          success: true as const, // Still considered success as some were queued
-          data: {
-            message: `Successfully queued ${successfulQueues} contacts. Failed to queue ${failedQueues}.`,
-            queuedCount: successfulQueues,
-          },
-          error: null, // Not returning a top-level error for partial success
-        });
+      for (let i = 0; i < totalContacts; i += BATCH_SIZE) {
+        const batchContacts = contacts.slice(i, i + BATCH_SIZE);
+        const messages = batchContacts.map((contact) => ({
+          // NOTE: Message body size limits apply (default 128 KB)
+          // Pass the raw object; Cloudflare handles serialization for JSON content type
+          body: { contact, campaignId, contactEmail: contact.Email },
+          // We are delaying between batches, so individual message delays might not be needed
+          // delaySeconds: Optional delay per message within the batch if needed
+        }));
+
+        try {
+          console.log(
+            `Sending batch ${Math.floor(i / BATCH_SIZE) + 1} (${messages.length} messages)...`
+          );
+          await c.env.QUEUE.sendBatch(messages);
+          successfullyQueuedCount += messages.length;
+          console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} sent successfully.`);
+        } catch (batchError) {
+          console.error(
+            `Failed to send batch starting at index ${i} for campaign ${campaignId}:`,
+            batchError
+          );
+          failedToQueueCount += messages.length; // Assume whole batch failed if sendBatch throws
+        }
+
+        // Add delay before the next batch, but not after the last one
+        if (i + BATCH_SIZE < totalContacts) {
+          console.log(`Waiting ${INTER_BATCH_DELAY_MS}ms before next batch...`);
+          await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY_MS));
+        }
       }
 
+      console.log(
+        `Finished queueing for campaign ${campaignId}. Success: ${successfullyQueuedCount}, Failed: ${failedToQueueCount}`
+      );
+
+      if (failedToQueueCount > 0) {
+        // If some contacts failed, return a response indicating partial or total failure
+        const isTotalFailure = successfullyQueuedCount === 0;
+        return c.json(
+          {
+            success: !isTotalFailure, // False only if absolutely nothing was queued
+            data: {
+              message: `Attempted to queue ${totalContacts} contacts. Successfully queued: ${successfullyQueuedCount}. Failed: ${failedToQueueCount}.`,
+              queuedCount: successfullyQueuedCount,
+            },
+            error: isTotalFailure
+              ? "Failed to queue any contacts."
+              : "Some contacts could not be queued.",
+          },
+          isTotalFailure ? 500 : 207
+        ); // 500 for total failure, 207 Multi-Status for partial success
+      }
+
+      // If all contacts were queued successfully
       return c.json({
         success: true as const,
         data: {
-          message: `Successfully queued all ${contacts.length} contacts for email pipe processing.`,
-          queuedCount: contacts.length,
+          message: `Successfully queued all ${successfullyQueuedCount} contacts for email pipe processing.`,
+          queuedCount: successfullyQueuedCount,
         },
         error: null,
       });
@@ -266,16 +297,43 @@ export default {
   port: 8787,
   fetch: app.fetch,
   async queue(
-    batch: MessageBatch<
-      {
-        contact: ApolloContact;
-        campaignId: string;
-      }[]
-    >,
+    batch: MessageBatch<{
+      contact: ApolloContact;
+      contactEmail: string;
+      campaignId: string;
+    }>,
     env: Env
-  ) {
+  ): Promise<void> {
     for (const message of batch.messages) {
-      console.log(message.body, "message body");
+      console.log(
+        `Queue consumer received message for: ${message.body.contactEmail}, Campaign: ${message.body.campaignId}. Creating workflow...`
+      );
+
+      const params = message.body;
+
+      try {
+        const instance = await env.EMAIL_PIPE_WORKFLOW.create({ params });
+        console.log(`Workflow instance ${instance.id} created for ${params.contactEmail}`);
+        message.ack();
+      } catch (creationErr: unknown) {
+        const creationErrorMessage =
+          creationErr instanceof Error ? creationErr.message : String(creationErr);
+        console.error(
+          `Failed to create workflow instance for ${params.contactEmail}:`,
+          creationErrorMessage
+        );
+        try {
+          message.retry({ delaySeconds: 60 });
+          console.log(`Retrying message for ${params.contactEmail}`);
+        } catch (retryErr: unknown) {
+          const errorMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          console.error(`Failed to retry message for ${params.contactEmail}:`, errorMessage);
+          message.ack();
+        }
+      }
     }
+
+    console.log(`Finished processing batch of ${batch.messages.length} messages.`);
   },
 };
+export * from "./workflows/email-pipe";

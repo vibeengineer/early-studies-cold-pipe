@@ -26,7 +26,14 @@
         "queue": "cold-pipe-queue"
       }
     ]
-  }
+  },
+  "workflows": [
+    {
+      "name": "email-pipe-workflow",
+      "binding": "EMAIL_PIPE_WORKFLOW",
+      "class_name": "EmailPipeWorkflow"
+    }
+  ],
   // "ai": {
   //   "binding": "AI"
   // },

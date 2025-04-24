@@ -4,7 +4,8 @@ import { logger } from "../services/logger";
 
 export type EmailPipeParams = {
   apolloContact: ApolloContact;
-  cleanupAfter: boolean;
+  campaignId: string;
+  contactEmail: string;
 };
 
 /**
@@ -12,9 +13,7 @@ export type EmailPipeParams = {
  */
 export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> {
   async run(event: WorkflowEvent<EmailPipeParams>, step: WorkflowStep) {
-    const { apolloContact, cleanupAfter } = event.payload;
-
-    // logger.info("Starting EmailPipeWorkflow", { apolloContact, cleanupAfter });
+    const { apolloContact, campaignId, contactEmail } = event.payload;
 
     const existingEmail = await step.do(
       "check database for existing record",
@@ -40,7 +39,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 minutes",
       },
       async () => {
-        logger.info("Starting email analysis", { apolloContact, cleanupAfter });
+        logger.info("Starting email analysis", { apolloContact, campaignId, contactEmail });
         return "other";
       }
     );
@@ -58,7 +57,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          cleanupAfter,
+          campaignId,
+          contactEmail,
         });
       }
     );
@@ -76,7 +76,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          cleanupAfter,
+          campaignId,
+          contactEmail,
         });
       }
     );
@@ -94,7 +95,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          cleanupAfter,
+          campaignId,
+          contactEmail,
         });
       }
     );
@@ -112,7 +114,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          cleanupAfter,
+          campaignId,
+          contactEmail,
         });
       }
     );
@@ -130,7 +133,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          cleanupAfter,
+          campaignId,
+          contactEmail,
         });
       }
     );
@@ -148,7 +152,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {
         logger.info("Attempting use gemini ai to write personalised emails", {
           apolloContact,
-          cleanupAfter,
+          campaignId,
+          contactEmail,
         });
       }
     );
@@ -164,7 +169,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 seconds",
       },
       async () => {
-        logger.info("Attempting to store in database", { apolloContact, cleanupAfter });
+        logger.info("Attempting to store in database", { apolloContact, campaignId, contactEmail });
       }
     );
 
@@ -179,7 +184,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 seconds",
       },
       async () => {
-        logger.info("Attempting to update contact", { apolloContact, cleanupAfter });
+        logger.info("Attempting to update contact", { apolloContact, campaignId, contactEmail });
       }
     );
 
@@ -196,7 +201,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       async () => {
         logger.info("Attempting to sync contact with smart lead campaign", {
           apolloContact,
-          cleanupAfter,
+          campaignId,
+          contactEmail,
         });
       }
     );
