@@ -29,25 +29,17 @@ export async function generateEmail(
     previousEmails
   );
 
-  try {
-    const { object } = await generateObject({
-      model: geminiFlashModel,
-      schema: generateEmailSchema,
-      prompt: systemPrompt,
-    });
+  const { object } = await generateObject({
+    model: geminiFlashModel,
+    schema: generateEmailSchema,
+    prompt: systemPrompt,
+  });
 
-    return {
-      data: object,
-      error: null,
-      success: true as const,
-    };
-  } catch (error) {
-    return {
-      data: null,
-      error: error instanceof Error ? error : new Error(String(error)),
-      success: false as const,
-    };
-  }
+  return {
+    data: object,
+    error: null,
+    success: true as const,
+  };
 }
 
 export async function generateAllEmails(contact: ApolloContact, profile?: LinkedinProfile | null) {
