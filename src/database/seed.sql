@@ -4,13 +4,13 @@ INSERT INTO people (
   id, 
   email, 
   linkedin_url, 
-  firstName,
-  lastName,
-  phoneNumber,
-  companyName,
+  first_name,
+  last_name,
+  phone_number,
+  company_name,
   website,
   location,
-  companyUrl,
+  company_url,
   apollo_contact_json, 
   proxycurl_profile_json
 ) VALUES (
