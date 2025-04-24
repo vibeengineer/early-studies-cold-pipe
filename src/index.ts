@@ -300,13 +300,13 @@ export default {
     batch: MessageBatch<{
       contact: ApolloContact;
       contactEmail: string;
-      campaignId: string;
+      campaignName: string;
     }>,
     env: Env
   ): Promise<void> {
     for (const message of batch.messages) {
       console.log(
-        `Queue consumer received message for: ${message.body.contactEmail}, Campaign: ${message.body.campaignId}. Creating workflow...`
+        `Queue consumer received message for: ${message.body.contactEmail}, Campaign: ${message.body.campaignName}. Creating workflow...`
       );
 
       const params = message.body;
