@@ -133,6 +133,10 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 minutes",
       },
       async () => {
+        if (contactRecord.emailHasBeenChecked) {
+          if (contactRecord.emailIsValid) return;
+          throw new NonRetryableError("Email is invalid skipping record");
+        }
         const haveNeverbounceCredits = await getNeverbounceAccountInfo();
         if (!haveNeverbounceCredits.success)
           throw new NonRetryableError("No neverbounce credits remaining");
