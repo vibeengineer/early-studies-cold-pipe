@@ -2,11 +2,11 @@ import { env } from "cloudflare:workers"; // Ensure env is available in test con
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { GenerateEmail } from "../src/services/ai/types";
 import type { ApolloContact } from "../src/services/apollo/schema";
-import { getCampaignById } from "../src/services/database";
 import type { LinkedinProfile } from "../src/services/proxycurl/schemas";
 import {
   createCampaign,
   deleteCampaign,
+  getCampaign,
   updateCampaign,
   uploadLeadsToSmartlead,
 } from "../src/services/smartlead";
@@ -73,7 +73,7 @@ describe("Smartlead Service Integration Tests", () => {
   );
 
   it("should find an existing campaign", async () => {
-    const response = await getCampaignById(1828645);
+    const response = await getCampaign(1828645);
     console.log(response);
     expect(response.success).toBe(true);
   });

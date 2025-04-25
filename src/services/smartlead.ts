@@ -134,7 +134,7 @@ const getCampaignResponseSchema = z.object({
       z.literal("DONT_REPLY_TO_AN_EMAIL"),
     ])
   ),
-  scheduler_cron_value: z.string().nullable(),
+  scheduler_cron_value: z.any().nullable(),
   min_time_btwn_emails: z.number(),
   max_leads_per_day: z.number(),
   stop_lead_settings: z.union([
