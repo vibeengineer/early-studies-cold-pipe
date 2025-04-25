@@ -56,13 +56,19 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
           getSmartleadCampaign(validatedParams.smartleadCampaignId),
         ]);
 
-        if (
-          !campaign.data ||
-          !smartleadCampaign.data ||
-          campaign.data.smartleadCampaignId !== smartleadCampaign.data.id
-        ) {
-          logger.error("Campaign not found ending workflow");
-          throw new NonRetryableError("Campaign not found");
+        if (!campaign.data) {
+          logger.error("Campaign not found in db");
+          throw new NonRetryableError("Campaign not found in db");
+        }
+
+        if (!smartleadCampaign.data) {
+          logger.error("Campaign not found in smartlead");
+          throw new NonRetryableError("Campaign not found in smartlead");
+        }
+
+        if (campaign.data.smartleadCampaignId !== smartleadCampaign.data.id) {
+          logger.error("Campaign id mismatch between db and smartlead");
+          throw new NonRetryableError("Campaign id mismatch between db and smartlead");
         }
 
         return {

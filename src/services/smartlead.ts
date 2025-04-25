@@ -20,7 +20,7 @@ const smartleadLeadSchema = z.object({
   first_name: z.string(),
   last_name: z.string(),
   email: z.string().email(),
-  phone_number: z.number().nullable().optional(),
+  phone_number: z.union([z.number(), z.string()]).nullable().optional(),
   company_name: z.string(),
   location: z.string(),
   custom_fields: z.any(),
