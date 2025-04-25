@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { type InferInsertModel, desc, eq } from "drizzle-orm";
+import { type InferInsertModel, desc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { schema } from "../../database/schema";
 import type { ApolloContact } from "../apollo/schema";
@@ -51,7 +51,13 @@ export async function updatePersonRecordInDB(
   values: Partial<InferInsertModel<typeof schema.people>>
 ) {
   const drizzleDb = drizzle(env.DB, { schema });
-  const result = await drizzleDb.update(schema.people).set(values).where(eq(schema.people.id, id));
+  const result = await drizzleDb
+    .update(schema.people)
+    .set({
+      ...values,
+      updatedAt: sql`(CURRENT_TIMESTAMP)`,
+    })
+    .where(eq(schema.people.id, id));
 
   return {
     data: result,

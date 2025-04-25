@@ -1,4 +1,4 @@
-INSERT INTO campaigns (id, name) VALUES ('wIW3LfIc', 'iiex-conference-north-america');
+INSERT INTO campaigns (id, name, smartlead_campaign_id) VALUES ('wIW3LfIc', 'iiex-conference-north-america', 1828645);
 
 INSERT INTO people (
   id, 

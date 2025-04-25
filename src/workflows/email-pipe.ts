@@ -118,7 +118,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       "check email is valid with neverbounce",
       {
         retries: {
-          limit: 3,
+          limit: 6,
           delay: "30 seconds",
           backoff: "exponential",
         },

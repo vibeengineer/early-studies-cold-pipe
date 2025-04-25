@@ -28,12 +28,10 @@ export const people = sqliteTable(
       .$type<ApolloContact>()
       .notNull(),
     proxycurlProfileJson: text("proxycurl_profile_json", { mode: "json" }).$type<LinkedinProfile>(),
-    createdAt: integer("created_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
+    createdAt: text("created_at")
+      .default(sql`(CURRENT_TIMESTAMP)`)
       .notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
-      .$onUpdate(() => sql`(strftime('%s', 'now'))`),
+    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => ({
     emailIdx: uniqueIndex("people_email_idx").on(table.email),
@@ -48,12 +46,10 @@ export const campaigns = sqliteTable(
       .$defaultFn(() => nanoid(8)),
     name: text("name").notNull(),
     smartleadCampaignId: integer("smartlead_campaign_id").unique(),
-    createdAt: integer("created_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
+    createdAt: text("created_at")
+      .default(sql`(CURRENT_TIMESTAMP)`)
       .notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
-      .$onUpdate(() => sql`(strftime('%s', 'now'))`),
+    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => ({
     smartleadCampaignIdIdx: index("campaigns_smartlead_campaign_id_idx").on(
@@ -73,12 +69,10 @@ export const emails = sqliteTable(
     sequenceNumber: integer("sequence_number").notNull(),
     personId: text("person_id").references(() => people.id),
     campaignId: text("campaign_id").references(() => campaigns.id),
-    createdAt: integer("created_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
+    createdAt: text("created_at")
+      .default(sql`(CURRENT_TIMESTAMP)`)
       .notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
-      .$onUpdate(() => sql`(strftime('%s', 'now'))`),
+    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => ({
     personIdIdx: index("emails_person_id_idx").on(table.personId),

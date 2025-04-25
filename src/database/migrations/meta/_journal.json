@@ -29,6 +29,13 @@
       "when": 1745570367795,
       "tag": "0003_exotic_wrecker",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1745572828871,
+      "tag": "0004_last_thunderbolts",
+      "breakpoints": true
     }
   ]
 }
