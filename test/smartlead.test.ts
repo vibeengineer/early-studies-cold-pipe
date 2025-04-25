@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers"; // Ensure env is available in test con
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { GenerateEmail } from "../src/services/ai/types";
 import type { ApolloContact } from "../src/services/apollo/schema";
+import { getCampaignById } from "../src/services/database";
 import type { LinkedinProfile } from "../src/services/proxycurl/schemas";
 import {
   createCampaign,
@@ -41,7 +42,7 @@ interface UploadLeadsResponse {
 const TIMEOUT = 30000;
 
 describe("Smartlead Service Integration Tests", () => {
-  let testCampaignId: string | null = null;
+  let testCampaignId: number | null = null;
 
   beforeAll(() => {
     if (!env.SMARTLEAD_API_KEY) {
@@ -62,7 +63,7 @@ describe("Smartlead Service Integration Tests", () => {
         expect(response.id).toBeDefined();
         expect(typeof response.id).toBe("number"); // Check type
 
-        testCampaignId = response.id.toString();
+        testCampaignId = response.id;
       } catch (error) {
         console.error("Error creating campaign:", error);
         throw error;
@@ -70,6 +71,12 @@ describe("Smartlead Service Integration Tests", () => {
     },
     TIMEOUT
   );
+
+  it("should find an existing campaign", async () => {
+    const response = await getCampaignById(1828645);
+    console.log(response);
+    expect(response.success).toBe(true);
+  });
 
   it("should successfully update the campaign", async () => {
     if (!testCampaignId) {
@@ -107,7 +114,18 @@ describe("Smartlead Service Integration Tests", () => {
       const sampleLeads = [sampleLead];
 
       try {
-        const response = await uploadLeadsToSmartlead(testCampaignId, sampleLeads);
+        const response = await uploadLeadsToSmartlead(testCampaignId, [
+          {
+            email: sampleLead.Email,
+            first_name: sampleLead["First Name"],
+            last_name: sampleLead["Last Name"],
+            company_name: sampleLead["Company Name for Emails"],
+            location: sampleLead.City,
+            company_url: sampleLead.Website,
+            linkedin_profile: sampleLead["Person Linkedin Url"],
+            phone_number: sampleLead["Mobile Phone"],
+          },
+        ]);
 
         expect(response).toBeDefined();
         expect(response.ok).toBe(true);

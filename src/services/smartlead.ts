@@ -216,7 +216,7 @@ export async function getCampaign(campaignId: number) {
 }
 
 export async function updateCampaign(
-  campaignId: string,
+  campaignId: number,
   campaignName: string
 ): Promise<GenericSmartleadResponse> {
   const response = await fetch(
@@ -243,7 +243,7 @@ export async function updateCampaign(
   return genericSmartleadResponseSchema.parse(data);
 }
 
-export async function deleteCampaign(campaignId: string): Promise<GenericSmartleadResponse> {
+export async function deleteCampaign(campaignId: number): Promise<GenericSmartleadResponse> {
   const response = await fetch(
     `https://server.smartlead.ai/api/v1/campaigns/${campaignId}?api_key=${env.SMARTLEAD_API_KEY}`,
     {
