@@ -92,12 +92,20 @@ export function structureObjectWithCustomFields<T extends Record<string, unknown
 /**
  * Parses a CSV string into an array of ApolloContact objects.
  * Assumes CSV headers exactly match the keys in ApolloContactSchema.
+ * Skips rows that fail validation and logs errors.
  *
  * @param csvString The CSV content as a string.
- * @returns A promise that resolves with an array of parsed contacts or rejects with an error.
+ * @returns A promise that resolves with an object containing validated contacts,
+ *          total rows processed, and any validation errors.
  */
-export function parseContactsFromCsv(csvString: string): Promise<ApolloContact[]> {
+export function parseContactsFromCsv(csvString: string): Promise<{
+  validContacts: ApolloContact[];
+  totalProcessedRows: number;
+  validationErrors: { row: number; errors: z.ZodIssue[] }[];
+}> {
   return new Promise((resolve, reject) => {
+    let totalProcessedRows = 0; // Counter for non-empty rows processed
+
     Papa.parse<Record<string, unknown>>(csvString, {
       header: true, // Use the first row as headers
       skipEmptyLines: true,
@@ -112,6 +120,7 @@ export function parseContactsFromCsv(csvString: string): Promise<ApolloContact[]
         // Validate each row against the schema
         const validatedContacts: ApolloContact[] = [];
         const validationErrors: { row: number; errors: z.ZodIssue[] }[] = [];
+        totalProcessedRows = 0; // Reset counter specifically for data rows
 
         results.data.forEach((row, index) => {
           // Filter out potential empty objects from PapaParse results
@@ -122,6 +131,7 @@ export function parseContactsFromCsv(csvString: string): Promise<ApolloContact[]
             // Skip truly empty rows silently
             return;
           }
+          totalProcessedRows++; // Increment for each non-empty row attempted
           const parsed = ApolloContactSchema.safeParse(row);
           if (parsed.success) {
             validatedContacts.push(parsed.data);
@@ -140,26 +150,19 @@ export function parseContactsFromCsv(csvString: string): Promise<ApolloContact[]
           // Optionally, you could return more detailed info about errors here if needed by the caller
         }
 
-        // Always resolve with the contacts that passed validation.
-        // If validationErrors.length > 0 but validatedContacts is empty,
-        // it means parsing succeeded but no rows met the schema criteria (or all valid rows were filtered out).
-        // The calling function should handle the case where validatedContacts might be empty.
-        if (
-          validatedContacts.length === 0 &&
-          results.data.filter(
-            (r) =>
-              Object.keys(r).length > 0 &&
-              !Object.values(r).every((v) => v === "" || v === null || v === undefined)
-          ).length > 0 // Check if there were non-empty rows to begin with
-        ) {
-          // Log if parsing seemed successful but yielded no valid contacts from non-empty input rows
+        // Log if parsing seemed successful but yielded no valid contacts from non-empty input rows
+        if (validatedContacts.length === 0 && totalProcessedRows > 0) {
           console.warn(
             "CSV parsing resulted in zero valid contacts after processing potentially invalid rows. Check validation errors above and ensure the file content matches the expected format."
           );
-          // Still resolve with an empty array
         }
 
-        resolve(validatedContacts);
+        // Resolve with the results object
+        resolve({
+          validContacts: validatedContacts,
+          totalProcessedRows: totalProcessedRows,
+          validationErrors: validationErrors,
+        });
       },
       error: (error: Error) => {
         console.error("CSV Parsing Failed Critically:", error);

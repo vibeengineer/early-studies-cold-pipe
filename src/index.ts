@@ -111,10 +111,25 @@ app.post(
           "application/json": {
             schema: resolver(
               z.object({
-                success: z.boolean(),
+                success: z.literal(true),
                 data: z.object({
                   message: z.string(),
-                  queuedCount: z.number(),
+                  totalRowsInCsv: z.number().openapi({
+                    description:
+                      "Total data rows found in the CSV file (excluding header/empty lines).",
+                  }),
+                  validRowsFound: z
+                    .number()
+                    .openapi({ description: "Number of rows that passed validation." }),
+                  invalidRowsSkipped: z.number().openapi({
+                    description: "Number of rows that failed validation and were skipped.",
+                  }),
+                  successfullyQueuedCount: z.number().openapi({
+                    description: "Number of valid contacts successfully sent to the queue.",
+                  }),
+                  failedToQueueCount: z.number().openapi({
+                    description: "Number of valid contacts that failed to be sent to the queue.",
+                  }),
                 }),
                 error: z.null(),
               })
@@ -160,16 +175,27 @@ app.post(
 
     try {
       const csvString = await contactsFile.text();
-      const contacts = await parseContactsFromCsv(csvString);
-      const totalContacts = contacts.length;
-      if (totalContacts === 0) return createErrorResponse(c, 400, "No valid contacts.");
+      const { validContacts, totalProcessedRows, validationErrors } =
+        await parseContactsFromCsv(csvString);
+
+      const validRowsFound = validContacts.length;
+      const invalidRowsSkipped = validationErrors.length;
+
+      if (validRowsFound === 0) {
+        const errorMsg =
+          totalProcessedRows > 0
+            ? `No valid contacts found out of ${totalProcessedRows} processed rows. ${invalidRowsSkipped} rows failed validation (check server logs).`
+            : "CSV file is empty or contains no processable data rows.";
+        return createErrorResponse(c, 400, errorMsg);
+      }
+
       const BATCH_SIZE = 100; // Process 100 contacts per batch
       const INTER_BATCH_DELAY_MS = 500; // 0.5 second delay between batches
       let successfullyQueuedCount = 0;
       let failedToQueueCount = 0;
 
-      for (let i = 0; i < totalContacts; i += BATCH_SIZE) {
-        const batchContacts = contacts.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < validRowsFound; i += BATCH_SIZE) {
+        const batchContacts = validContacts.slice(i, i + BATCH_SIZE);
         const messages = batchContacts.map((contact) => ({
           body: { contact, smartleadCampaignId, contactEmail: contact.Email },
         }));
@@ -178,22 +204,33 @@ app.post(
           await c.env.QUEUE.sendBatch(messages);
           successfullyQueuedCount += messages.length;
         } catch (batchError) {
-          console.error(`Failed to send batch: ${batchError}`);
+          console.error(`Failed to send batch starting at index ${i}: ${batchError}`);
           failedToQueueCount += messages.length;
         }
 
         // Add delay before the next batch, but not after the last one
-        if (i + BATCH_SIZE < totalContacts) {
+        if (i + BATCH_SIZE < validRowsFound) {
           console.log(`Waiting ${INTER_BATCH_DELAY_MS}ms before next batch...`);
           await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY_MS));
         }
       }
 
+      // Construct the detailed success message
+      let message = `Processed ${totalProcessedRows} CSV rows. Queued ${successfullyQueuedCount} valid contacts`;
+      if (invalidRowsSkipped > 0) message += `, skipped ${invalidRowsSkipped} invalid rows`;
+      if (failedToQueueCount > 0)
+        message += `, failed to queue ${failedToQueueCount} valid contacts`;
+      message += ".";
+
       return c.json({
         success: true as const,
         data: {
-          message: `Successfully queued ${successfullyQueuedCount} out of ${totalContacts} contacts.`,
-          queuedCount: successfullyQueuedCount,
+          message: message,
+          totalRowsInCsv: totalProcessedRows,
+          validRowsFound: validRowsFound,
+          invalidRowsSkipped: invalidRowsSkipped,
+          successfullyQueuedCount: successfullyQueuedCount,
+          failedToQueueCount: failedToQueueCount,
         },
         error: null,
       });
