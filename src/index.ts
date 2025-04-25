@@ -190,28 +190,29 @@ app.post(
       }
 
       const BATCH_SIZE = 30; // Reduced batch size to avoid 256KB payload limit
-      const INTER_BATCH_DELAY_MS = 500; // 0.5 second delay between batches
       let successfullyQueuedCount = 0;
       let failedToQueueCount = 0;
 
       for (let i = 0; i < validRowsFound; i += BATCH_SIZE) {
+        const batchNumber = i / BATCH_SIZE; // 0 for first batch, 1 for second, etc.
+        const calculatedDelaySeconds = batchNumber * 10;
+
         const batchContacts = validContacts.slice(i, i + BATCH_SIZE);
         const messages = batchContacts.map((contact) => ({
           body: { contact, smartleadCampaignId, contactEmail: contact.Email },
         }));
 
         try {
-          await c.env.QUEUE.sendBatch(messages);
+          console.log(
+            `Queueing batch ${batchNumber + 1} (index ${i}) with delay ${calculatedDelaySeconds}s`
+          );
+          await c.env.QUEUE.sendBatch(messages, { delaySeconds: calculatedDelaySeconds });
           successfullyQueuedCount += messages.length;
         } catch (batchError) {
-          console.error(`Failed to send batch starting at index ${i}: ${batchError}`);
+          console.error(
+            `Failed to send batch starting at index ${i}: ${batchError instanceof Error ? batchError.message : String(batchError)}`
+          );
           failedToQueueCount += messages.length;
-        }
-
-        // Add delay before the next batch, but not after the last one
-        if (i + BATCH_SIZE < validRowsFound) {
-          console.log(`Waiting ${INTER_BATCH_DELAY_MS}ms before next batch...`);
-          await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY_MS));
         }
       }
 
