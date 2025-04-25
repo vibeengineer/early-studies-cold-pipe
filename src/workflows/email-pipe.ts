@@ -105,8 +105,10 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
               }
             );
 
-            if (data.person.emailHasBeenChecked && !data.person.emailIsValid)
+            if (data.person.emailHasBeenChecked && !data.person.emailIsValid) {
               throw new NonRetryableError("Email is invalid skipping record");
+            }
+
             throw new NonRetryableError(
               "Contact already synced to smartlead and has linkedin profile and emails written"
             );
