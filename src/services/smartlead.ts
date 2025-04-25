@@ -194,6 +194,7 @@ export async function getCampaign(campaignId: number) {
     );
 
     if (!response.ok) {
+      console.log(await response.json());
       throw new Error(`Failed to get campaign: ${response.statusText}`);
     }
 
