@@ -224,6 +224,10 @@ app.get(
           url: "http://localhost:8787",
           description: "Local server",
         },
+        {
+          url: "https://early-studies-cold-pipe.early-studies.workers.dev",
+          description: "Production server",
+        },
       ],
     },
   })
