@@ -19,6 +19,8 @@ export const people = sqliteTable(
       .$defaultFn(() => nanoid(8)),
     email: text("email").notNull(),
     linkedinUrl: text("linkedin_url").notNull(),
+    emailHasBeenChecked: integer("email_has_been_checked", { mode: "boolean" }).default(false),
+    emailIsValid: integer("email_verified", { mode: "boolean" }).default(false),
     emailsWritten: integer("emails_written", { mode: "boolean" }).default(false),
     linkedinProfileFetched: integer("linkedin_profile_fetched", { mode: "boolean" }).default(false),
     syncedToSmartlead: integer("synced_to_smartlead", { mode: "boolean" }).default(false),

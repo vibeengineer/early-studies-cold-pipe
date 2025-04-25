@@ -48,23 +48,28 @@ export async function fetchPersonProfile(linkedinProfileUrl: string) {
   });
 
   if (!response.ok) {
-    let errorBodyText = `Status: ${response.status} ${response.statusText}`;
-    try {
-      const errorBodyJson = await response.json();
-      errorBodyText = JSON.stringify(errorBodyJson);
-    } catch (e) {
-      errorBodyText = await response.text();
-    }
-    throw new Error(`Proxycurl API request failed: ${errorBodyText}`);
+    return {
+      success: false,
+      data: null,
+      error: "Profile not found",
+    };
   }
 
   const data = await response.json();
 
-  const validatedData = PersonProfileSchema.parse(data);
+  const validatedData = PersonProfileSchema.safeParse(data);
+
+  if (!validatedData.success) {
+    return {
+      success: false,
+      data: null,
+      error: "Invalid profile data",
+    };
+  }
 
   return {
     success: true,
-    data: validatedData,
+    data: validatedData.data,
     error: null,
   };
 }

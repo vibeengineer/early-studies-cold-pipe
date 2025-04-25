@@ -89,10 +89,10 @@ export async function getCampaignByName(name: string) {
   };
 }
 
-export async function getCampaignById(id: string) {
+export async function getCampaignById(smartleadCampaignId: number) {
   const drizzleDb = drizzle(env.DB, { schema });
   const result = await drizzleDb.query.campaigns.findFirst({
-    where: eq(schema.campaigns.id, id),
+    where: eq(schema.campaigns.smartleadCampaignId, smartleadCampaignId),
   });
 
   return {
@@ -149,12 +149,12 @@ export async function createEmail(
 
 export async function createEmails(
   emails: { subject: string; message: string; sequenceNumber: number }[],
-  campaignName: string
+  smartleadCampaignId: number
 ) {
   const drizzleDb = drizzle(env.DB, { schema });
 
   const campaign = await drizzleDb.query.campaigns.findFirst({
-    where: eq(schema.campaigns.name, campaignName),
+    where: eq(schema.campaigns.smartleadCampaignId, smartleadCampaignId),
   });
 
   if (!campaign) throw new Error("No campaign found");

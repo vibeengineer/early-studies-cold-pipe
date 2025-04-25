@@ -17,8 +17,8 @@ const validContactSchema = z
 export async function generateEmail(
   contact: ApolloContact,
   sequenceNumber: number,
-  profile?: LinkedinProfile | null,
-  previousEmails: GenerateEmail[] = []
+  previousEmails: GenerateEmail[] = [],
+  profile?: LinkedinProfile | null
 ) {
   const parsedContact = validContactSchema.parse(contact) as ApolloContact;
 
@@ -43,7 +43,8 @@ export async function generateEmail(
 }
 
 export async function generateAllEmails(contact: ApolloContact, profile?: LinkedinProfile | null) {
-  const email1 = await generateEmail(contact, 1, profile, []);
+  const email1 = await generateEmail(contact, 1, [], profile);
+  console.log("Email 1 generated", { email1 });
   if (!email1.success) {
     return {
       data: null,
@@ -51,7 +52,8 @@ export async function generateAllEmails(contact: ApolloContact, profile?: Linked
       success: false as const,
     };
   }
-  const email2 = await generateEmail(contact, 2, profile, [email1.data]);
+  const email2 = await generateEmail(contact, 2, [email1.data], profile);
+  console.log("Email 2 generated", { email2 });
   if (!email2.success) {
     return {
       data: null,
@@ -59,7 +61,8 @@ export async function generateAllEmails(contact: ApolloContact, profile?: Linked
       success: false as const,
     };
   }
-  const email3 = await generateEmail(contact, 3, profile, [email1.data, email2.data]);
+  const email3 = await generateEmail(contact, 3, [email1.data, email2.data], profile);
+  console.log("Email 3 generated", { email3 });
   if (!email3.success) {
     return {
       data: null,
@@ -67,7 +70,7 @@ export async function generateAllEmails(contact: ApolloContact, profile?: Linked
       success: false as const,
     };
   }
-  const email4 = await generateEmail(contact, 4, profile, [email1.data, email2.data, email3.data]);
+  const email4 = await generateEmail(contact, 4, [email1.data, email2.data, email3.data], profile);
   if (!email4.success) {
     return {
       data: null,
@@ -75,12 +78,12 @@ export async function generateAllEmails(contact: ApolloContact, profile?: Linked
       success: false as const,
     };
   }
-  const email5 = await generateEmail(contact, 5, profile, [
-    email1.data,
-    email2.data,
-    email3.data,
-    email4.data,
-  ]);
+  const email5 = await generateEmail(
+    contact,
+    5,
+    [email1.data, email2.data, email3.data, email4.data],
+    profile
+  );
   if (!email5.success) {
     return {
       data: null,
@@ -88,13 +91,12 @@ export async function generateAllEmails(contact: ApolloContact, profile?: Linked
       success: false as const,
     };
   }
-  const email6 = await generateEmail(contact, 6, profile, [
-    email1.data,
-    email2.data,
-    email3.data,
-    email4.data,
-    email5.data,
-  ]);
+  const email6 = await generateEmail(
+    contact,
+    6,
+    [email1.data, email2.data, email3.data, email4.data, email5.data],
+    profile
+  );
 
   if (!email6.success) {
     return {

@@ -5,6 +5,7 @@ import { Scalar } from "@scalar/hono-api-reference";
 import { describeRoute, openAPISpecs } from "hono-openapi";
 import { resolver, validator as zValidator } from "hono-openapi/zod";
 import type { Next } from "hono/types";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { ApolloContact } from "./services/apollo/schema";
 import { parseContactsFromCsv } from "./utils";
 
@@ -13,6 +14,17 @@ const app = new Hono();
 app.get("/", (c) => {
   return c.text("Hello Hono!");
 });
+
+function createErrorResponse(c: Context, status: ContentfulStatusCode, message?: string) {
+  return c.json(
+    {
+      success: false,
+      data: null,
+      error: message,
+    },
+    status
+  );
+}
 
 export function validateToken(
   userToken: string | undefined | null,
@@ -60,9 +72,9 @@ export function createAuthMiddleware() {
 
 // Define the schema for the multipart/form-data request
 const ContactQueueFormSchema = z.object({
-  campaignId: z.string().openapi({
+  smartleadCampaignId: z.coerce.number().openapi({
     description: "The id of the campaign to associate the contacts with.",
-    example: "campaign_123",
+    example: 123,
   }),
   contactsFile: z
     .custom<File>((val) => val instanceof File, "Input must be a CSV file")
@@ -88,8 +100,7 @@ app.post(
     requestBody: {
       content: {
         "multipart/form-data": {
-          // Changed content type
-          schema: ContactQueueFormSchema, // Use the form schema
+          schema: ContactQueueFormSchema,
         },
       },
     },
@@ -120,13 +131,12 @@ app.post(
               z.object({
                 success: z.boolean(),
                 data: z.null(),
-                error: z.string(), // Keep error as string for simplicity
+                error: z.string(),
               })
             ),
           },
         },
       },
-      // Keep 401/403 from middleware implicitly
       500: {
         description: "Internal Server Error (e.g., queueing failed)",
         content: {
@@ -144,58 +154,32 @@ app.post(
     },
     tags: ["Email Pipe"],
   }),
-  zValidator("form", ContactQueueFormSchema), // Changed to "form" validator
+  zValidator("form", ContactQueueFormSchema),
   async (c) => {
-    const { contactsFile, campaignId } = c.req.valid("form");
+    const { contactsFile, smartleadCampaignId } = c.req.valid("form");
 
     try {
       const csvString = await contactsFile.text();
       const contacts = await parseContactsFromCsv(csvString);
-
-      if (contacts.length === 0) {
-        return c.json(
-          {
-            success: false as const,
-            data: null,
-            error:
-              "No valid contacts could be parsed from the uploaded CSV file. Check format and content.",
-          },
-          400
-        );
-      }
-
+      const totalContacts = contacts.length;
+      if (totalContacts === 0) return createErrorResponse(c, 400, "No valid contacts.");
       const BATCH_SIZE = 100; // Process 100 contacts per batch
       const INTER_BATCH_DELAY_MS = 500; // 0.5 second delay between batches
-
       let successfullyQueuedCount = 0;
       let failedToQueueCount = 0;
-      const totalContacts = contacts.length;
-
-      console.log(`Starting to queue ${totalContacts} contacts in batches of ${BATCH_SIZE}...`);
 
       for (let i = 0; i < totalContacts; i += BATCH_SIZE) {
         const batchContacts = contacts.slice(i, i + BATCH_SIZE);
         const messages = batchContacts.map((contact) => ({
-          // NOTE: Message body size limits apply (default 128 KB)
-          // Pass the raw object; Cloudflare handles serialization for JSON content type
-          body: { contact, campaignId, contactEmail: contact.Email },
-          // We are delaying between batches, so individual message delays might not be needed
-          // delaySeconds: Optional delay per message within the batch if needed
+          body: { contact, smartleadCampaignId, contactEmail: contact.Email },
         }));
 
         try {
-          console.log(
-            `Sending batch ${Math.floor(i / BATCH_SIZE) + 1} (${messages.length} messages)...`
-          );
           await c.env.QUEUE.sendBatch(messages);
           successfullyQueuedCount += messages.length;
-          console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} sent successfully.`);
         } catch (batchError) {
-          console.error(
-            `Failed to send batch starting at index ${i} for campaign ${campaignId}:`,
-            batchError
-          );
-          failedToQueueCount += messages.length; // Assume whole batch failed if sendBatch throws
+          console.error(`Failed to send batch: ${batchError}`);
+          failedToQueueCount += messages.length;
         }
 
         // Add delay before the next batch, but not after the last one
@@ -205,62 +189,22 @@ app.post(
         }
       }
 
-      console.log(
-        `Finished queueing for campaign ${campaignId}. Success: ${successfullyQueuedCount}, Failed: ${failedToQueueCount}`
-      );
-
-      if (failedToQueueCount > 0) {
-        // If some contacts failed, return a response indicating partial or total failure
-        const isTotalFailure = successfullyQueuedCount === 0;
-        return c.json(
-          {
-            success: !isTotalFailure, // False only if absolutely nothing was queued
-            data: {
-              message: `Attempted to queue ${totalContacts} contacts. Successfully queued: ${successfullyQueuedCount}. Failed: ${failedToQueueCount}.`,
-              queuedCount: successfullyQueuedCount,
-            },
-            error: isTotalFailure
-              ? "Failed to queue any contacts."
-              : "Some contacts could not be queued.",
-          },
-          isTotalFailure ? 500 : 207
-        ); // 500 for total failure, 207 Multi-Status for partial success
-      }
-
-      // If all contacts were queued successfully
       return c.json({
         success: true as const,
         data: {
-          message: `Successfully queued all ${successfullyQueuedCount} contacts for email pipe processing.`,
+          message: `Successfully queued ${successfullyQueuedCount} out of ${totalContacts} contacts.`,
           queuedCount: successfullyQueuedCount,
         },
         error: null,
       });
     } catch (error: unknown) {
-      console.error(`Error processing contact queue request for campaign ${campaignId}:`, error);
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-
-      // Distinguish between parsing/validation errors (Bad Request) and other errors (Internal Server Error)
-      const isBadRequest =
-        errorMessage.includes("CSV validation failed") ||
-        errorMessage.includes("Failed to parse CSV") ||
-        errorMessage.includes("zero valid contacts") ||
-        errorMessage.includes("File must be a CSV") || // Added from Zod refine
-        errorMessage.includes("CSV file cannot be empty"); // Added from Zod refine
-      const statusCode = isBadRequest ? 400 : 500;
-      const defaultError =
-        statusCode === 400
-          ? "Failed to process CSV file due to format or content errors."
-          : "Failed to queue contacts due to an internal error.";
-
       return c.json(
         {
           success: false as const,
           data: null,
-          // Provide a more specific error message if available, otherwise a generic one
-          error: errorMessage || defaultError,
+          error: error instanceof Error ? error.message : "An unexpected error occurred",
         },
-        statusCode
+        500
       );
     }
   }
@@ -305,35 +249,20 @@ export default {
     env: Env
   ): Promise<void> {
     for (const message of batch.messages) {
-      console.log(
-        `Queue consumer received message for: ${message.body.contactEmail}, Campaign: ${message.body.campaignName}. Creating workflow...`
-      );
-
-      const params = message.body;
-
       try {
-        const instance = await env.EMAIL_PIPE_WORKFLOW.create({ params });
-        console.log(`Workflow instance ${instance.id} created for ${params.contactEmail}`);
+        await env.EMAIL_PIPE_WORKFLOW.create({ params: message.body });
         message.ack();
       } catch (creationErr: unknown) {
-        const creationErrorMessage =
-          creationErr instanceof Error ? creationErr.message : String(creationErr);
-        console.error(
-          `Failed to create workflow instance for ${params.contactEmail}:`,
-          creationErrorMessage
-        );
         try {
           message.retry({ delaySeconds: 60 });
-          console.log(`Retrying message for ${params.contactEmail}`);
         } catch (retryErr: unknown) {
-          const errorMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
-          console.error(`Failed to retry message for ${params.contactEmail}:`, errorMessage);
+          console.error(
+            `Failed to retry message for ${message.body.contactEmail}: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`
+          );
           message.ack();
         }
       }
     }
-
-    console.log(`Finished processing batch of ${batch.messages.length} messages.`);
   },
 };
 export * from "./workflows/email-pipe";

@@ -127,12 +127,14 @@ const getCampaignResponseSchema = z.object({
     z.literal("PAUSED"),
   ]),
   name: z.string(),
-  track_settings: z.union([
-    z.literal("DONT_EMAIL_OPEN"),
-    z.literal("DONT_LINK_CLICK"),
-    z.literal("DONT_REPLY_TO_AN_EMAIL"),
-  ]),
-  scheduler_cron_value: z.string(),
+  track_settings: z.array(
+    z.union([
+      z.literal("DONT_EMAIL_OPEN"),
+      z.literal("DONT_LINK_CLICK"),
+      z.literal("DONT_REPLY_TO_AN_EMAIL"),
+    ])
+  ),
+  scheduler_cron_value: z.string().nullable(),
   min_time_btwn_emails: z.number(),
   max_leads_per_day: z.number(),
   stop_lead_settings: z.union([
@@ -140,7 +142,7 @@ const getCampaignResponseSchema = z.object({
     z.literal("CLICK_ON_A_LINK"),
     z.literal("OPEN_AN_EMAIL"),
   ]),
-  unsubscribe_text: z.string(),
+  unsubscribe_text: z.string().nullable(),
   client_id: z.number().nullable(),
   enable_ai_esp_matching: z.boolean(),
   send_as_plain_text: z.boolean(),
@@ -178,18 +180,39 @@ export async function createCampaign(
   return createCampaignResponseSchema.parse(data);
 }
 
-export async function getCampaign(campaignId: string) {
-  const response = await fetch(
-    `https://server.smartlead.ai/api/v1/campaigns/${campaignId}?api_key=${env.SMARTLEAD_API_KEY}`
-  );
+export async function getCampaign(campaignId: number) {
+  try {
+    const response = await fetch(
+      `https://server.smartlead.ai/api/v1/campaigns/${campaignId.toString()}?api_key=${env.SMARTLEAD_API_KEY}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      }
+    );
 
-  const data = await response.json();
-  const parsedData = getCampaignResponseSchema.parse(data);
-  return {
-    data: parsedData,
-    success: true,
-    error: null,
-  };
+    if (!response.ok) {
+      throw new Error(`Failed to get campaign: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const parsedData = getCampaignResponseSchema.parse(data);
+
+    return {
+      data: parsedData,
+      success: true,
+      error: null,
+    };
+  } catch (error) {
+    console.log(JSON.stringify(error, null, 2));
+    return {
+      data: null,
+      success: false,
+      error: "Failed to get campaign",
+    };
+  }
 }
 
 export async function updateCampaign(

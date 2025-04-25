@@ -15,6 +15,13 @@
       "when": 1745508575141,
       "tag": "0001_outgoing_kinsey_walden",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1745524445487,
+      "tag": "0002_tearful_spectrum",
+      "breakpoints": true
     }
   ]
 }

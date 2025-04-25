@@ -1,9 +1,7 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
-import { a } from "vitest/dist/chunks/suite.d.FvehnV49.js";
 import { z } from "zod";
-import { emails } from "../database/schema";
-import { generateAllEmails, generateEmail } from "../services/ai";
+import { generateEmail } from "../services/ai";
 import { type ApolloContact, ApolloContactSchema } from "../services/apollo/schema";
 import {
   addPersonRecordToDB,
@@ -13,36 +11,34 @@ import {
 } from "../services/database";
 import { getCampaignById } from "../services/database";
 import { logger } from "../services/logger";
+import { verifyEmail } from "../services/neverbounce";
 import { fetchPersonProfile, getProxycurlCreditBalance } from "../services/proxycurl";
-import {
-  createCampaign as createSmartleadCampaign,
-  getCampaign as getSmartleadCampaign,
-  uploadLeadsToSmartlead,
-} from "../services/smartlead";
+import { getCampaign as getSmartleadCampaign, uploadLeadsToSmartlead } from "../services/smartlead";
 
 export type EmailPipeParams = {
   contact: ApolloContact;
   contactEmail: string;
-  campaignId: string;
+  smartleadCampaignId: number;
 };
 
 const workflowSchema = z.object({
   contact: ApolloContactSchema,
   contactEmail: z.string(),
-  campaignId: z.string(),
+  smartleadCampaignId: z.number(),
 });
 
 export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> {
   async run(event: WorkflowEvent<EmailPipeParams>, step: WorkflowStep) {
-    const { contact, contactEmail, campaignId } = event.payload;
-
-    await step.do("validates all parameters and throws non retryable if missing", async () => {
-      const result = workflowSchema.safeParse(event.payload);
-      if (!result.success) {
-        logger.error("Invalid parameters ending workflow", { error: result.error });
-        throw new NonRetryableError("Invalid parameters");
+    const validatedParams = await step.do(
+      "validates all parameters and throws non retryable if missing",
+      async () => {
+        const result = workflowSchema.safeParse(event.payload);
+        if (!result.success) {
+          throw new NonRetryableError("Invalid parameters");
+        }
+        return result.data;
       }
-    });
+    );
 
     const campaign = await step.do(
       "checks the db and smartlead for a campaign id",
@@ -56,8 +52,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       },
       async () => {
         const [campaign, smartleadCampaign] = await Promise.all([
-          getCampaignById(campaignId),
-          getSmartleadCampaign(campaignId),
+          getCampaignById(validatedParams.smartleadCampaignId),
+          getSmartleadCampaign(validatedParams.smartleadCampaignId),
         ]);
 
         if (
@@ -87,7 +83,7 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "2 minutes",
       },
       async () => {
-        const { data } = await checkIfPersonWithEmailExistsInDb(contactEmail);
+        const { data } = await checkIfPersonWithEmailExistsInDb(validatedParams.contactEmail);
 
         if (data.exists) {
           if (!data.person) throw new NonRetryableError("Should never happen");
@@ -102,6 +98,9 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
                 contactId: data.person.id,
               }
             );
+
+            if (data.person.emailHasBeenChecked && !data.person.emailIsValid)
+              throw new NonRetryableError("Email is invalid skipping record");
             throw new NonRetryableError(
               "Contact already synced to smartlead and has linkedin profile and emails written"
             );
@@ -109,9 +108,29 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
           return data.person;
         }
 
-        const person = await addPersonRecordToDB(contact);
+        const person = await addPersonRecordToDB(validatedParams.contact);
 
         return person.data;
+      }
+    );
+
+    await step.do(
+      "check email is valid with neverbounce",
+      {
+        retries: {
+          limit: 3,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        const valid = await verifyEmail(validatedParams.contactEmail);
+        await updatePersonRecordInDB(contactRecord.id, {
+          emailIsValid: valid.success,
+          emailHasBeenChecked: true,
+        });
+        if (!valid.success) throw new NonRetryableError("Email is invalid");
       }
     );
 
@@ -135,8 +154,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         if (creditBalance <= 0) {
           return null;
         }
-
-        const result = await fetchPersonProfile(contact["Person Linkedin Url"]);
+        const result = await fetchPersonProfile(validatedParams.contact["Person Linkedin Url"]);
+        if (!result.success) return null;
         await updatePersonRecordInDB(contactRecord.id, {
           proxycurlProfileJson: result.data,
           linkedinProfileFetched: true,
@@ -146,8 +165,8 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
       }
     );
 
-    const personalisedEmails = await step.do(
-      "use AI to write personalised emails",
+    const email1 = await step.do(
+      "write email one with ai",
       {
         retries: {
           limit: 6,
@@ -157,26 +176,187 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 minutes",
       },
       async () => {
-        const result = await generateAllEmails(
-          contact,
+        const result = await generateEmail(
+          validatedParams.contact,
+          1,
+          [],
           linkedInProfile ? linkedInProfile : undefined
         );
+        await createEmails(
+          [
+            {
+              message: result.data.message,
+              subject: result.data.subject,
+              sequenceNumber: 1,
+            },
+          ],
+          campaign.smartleadCampaignId
+        );
+        return result.data;
+      }
+    );
 
-        if (!result.data || result.error) throw new Error("Failed to generate emails");
+    const email2 = await step.do(
+      "write email two with ai",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        const result = await generateEmail(
+          validatedParams.contact,
+          2,
+          [email1],
+          linkedInProfile ? linkedInProfile : undefined
+        );
+        await createEmails(
+          [
+            {
+              message: result.data.message,
+              subject: result.data.subject,
+              sequenceNumber: 2,
+            },
+          ],
+          campaign.smartleadCampaignId
+        );
+        return result.data;
+      }
+    );
 
-        const { data: emails, success } = await createEmails(result.data, campaign.dbCampaignId);
+    const email3 = await step.do(
+      "write email three with ai",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        const result = await generateEmail(
+          validatedParams.contact,
+          3,
+          [email1, email2],
+          linkedInProfile ? linkedInProfile : undefined
+        );
+        await createEmails(
+          [
+            {
+              message: result.data.message,
+              subject: result.data.subject,
+              sequenceNumber: 3,
+            },
+          ],
+          campaign.smartleadCampaignId
+        );
+        return result.data;
+      }
+    );
 
-        if (!success) throw new Error("Failed to create emails");
+    const email4 = await step.do(
+      "write email four with ai",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        const result = await generateEmail(
+          validatedParams.contact,
+          4,
+          [email1, email2, email3],
+          linkedInProfile ? linkedInProfile : undefined
+        );
+        await createEmails(
+          [
+            {
+              message: result.data.message,
+              subject: result.data.subject,
+              sequenceNumber: 4,
+            },
+          ],
+          campaign.smartleadCampaignId
+        );
+        return result.data;
+      }
+    );
+
+    const email5 = await step.do(
+      "write email five with ai",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        const result = await generateEmail(
+          validatedParams.contact,
+          5,
+          [email1, email2, email3, email4],
+          linkedInProfile ? linkedInProfile : undefined
+        );
+        await createEmails(
+          [
+            {
+              message: result.data.message,
+              subject: result.data.subject,
+              sequenceNumber: 5,
+            },
+          ],
+          campaign.smartleadCampaignId
+        );
+        return result.data;
+      }
+    );
+
+    const email6 = await step.do(
+      "write email six with ai",
+      {
+        retries: {
+          limit: 6,
+          delay: "30 seconds",
+          backoff: "exponential",
+        },
+        timeout: "30 minutes",
+      },
+      async () => {
+        const result = await generateEmail(
+          validatedParams.contact,
+          6,
+          [email1, email2, email3, email4, email5],
+          linkedInProfile ? linkedInProfile : undefined
+        );
+        await createEmails(
+          [
+            {
+              message: result.data.message,
+              subject: result.data.subject,
+              sequenceNumber: 6,
+            },
+          ],
+          campaign.smartleadCampaignId
+        );
 
         await updatePersonRecordInDB(contactRecord.id, {
           emailsWritten: true,
         });
 
-        return emails;
+        return result.data;
       }
     );
 
-    const syncContactWithSmartLeadCampaign = await step.do(
+    await step.do(
       "sync contact with smart lead campaign",
       {
         retries: {
@@ -187,35 +367,43 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 seconds",
       },
       async () => {
+        if (contactRecord.syncedToSmartlead) {
+          console.log("Contact already synced to smartlead");
+          return;
+        }
         await uploadLeadsToSmartlead(campaign.smartleadCampaignId, [
           {
-            first_name: contact["First Name"],
-            last_name: contact["Last Name"],
-            email: contactEmail,
-            phone_number: contact["Mobile Phone"],
-            company_name: contact["Company Name for Emails"],
-            location: contact.City,
+            first_name: validatedParams.contact["First Name"],
+            last_name: validatedParams.contact["Last Name"],
+            email: validatedParams.contactEmail,
+            phone_number: validatedParams.contact["Mobile Phone"],
+            company_name: validatedParams.contact["Company Name for Emails"],
+            location: validatedParams.contact.City,
             custom_fields: {
-              emailOneSubject: personalisedEmails[0].subject,
-              emailOneMessage: personalisedEmails[0].message,
-              emailTwoSubject: personalisedEmails[1].subject,
-              emailTwoMessage: personalisedEmails[1].message,
-              emailThreeSubject: personalisedEmails[2].subject,
-              emailThreeMessage: personalisedEmails[2].message,
-              emailFourSubject: personalisedEmails[3].subject,
-              emailFourMessage: personalisedEmails[3].message,
-              emailFiveSubject: personalisedEmails[4].subject,
-              emailFiveMessage: personalisedEmails[4].message,
-              emailSixSubject: personalisedEmails[5].subject,
-              emailSixMessage: personalisedEmails[5].message,
+              emailOneSubject: email1.subject,
+              emailOneMessage: email1.message,
+              emailTwoSubject: email2.subject,
+              emailTwoMessage: email2.message,
+              emailThreeSubject: email3.subject,
+              emailThreeMessage: email3.message,
+              emailFourSubject: email4.subject,
+              emailFourMessage: email4.message,
+              emailFiveSubject: email5.subject,
+              emailFiveMessage: email5.message,
+              emailSixSubject: email6.subject,
+              emailSixMessage: email6.message,
             },
-            linkedin_profile: contact["Person Linkedin Url"],
-            company_url: contact.Website,
+            linkedin_profile: validatedParams.contact["Person Linkedin Url"],
+            company_url: validatedParams.contact.Website,
           },
         ]);
 
         await updatePersonRecordInDB(contactRecord.id, {
           syncedToSmartlead: true,
+        });
+
+        logger.info("Contact synced to smartlead", {
+          contactId: contactRecord.id,
         });
       }
     );
