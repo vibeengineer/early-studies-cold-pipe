@@ -22,6 +22,13 @@
       "when": 1745524445487,
       "tag": "0002_tearful_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1745570367795,
+      "tag": "0003_exotic_wrecker",
+      "breakpoints": true
     }
   ]
 }
