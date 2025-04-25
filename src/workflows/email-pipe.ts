@@ -11,7 +11,7 @@ import {
 } from "../services/database";
 import { getCampaignById } from "../services/database";
 import { logger } from "../services/logger";
-import { verifyEmail } from "../services/neverbounce";
+import { getNeverbounceAccountInfo, verifyEmail } from "../services/neverbounce";
 import { fetchPersonProfile, getProxycurlCreditBalance } from "../services/proxycurl";
 import { getCampaign as getSmartleadCampaign, uploadLeadsToSmartlead } from "../services/smartlead";
 
@@ -125,6 +125,9 @@ export class EmailPipeWorkflow extends WorkflowEntrypoint<Env, EmailPipeParams> 
         timeout: "30 minutes",
       },
       async () => {
+        const haveNeverbounceCredits = await getNeverbounceAccountInfo();
+        if (!haveNeverbounceCredits.success)
+          throw new NonRetryableError("No neverbounce credits remaining");
         const valid = await verifyEmail(validatedParams.contactEmail);
         await updatePersonRecordInDB(contactRecord.id, {
           emailIsValid: valid.success,

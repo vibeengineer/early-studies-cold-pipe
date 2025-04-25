@@ -15,8 +15,25 @@ const neverbounceResponseSchema = z.object({
   credits_remaining: z.number().optional(),
 });
 
-export type NeverbounceResponse = z.infer<typeof neverbounceResponseSchema>;
+const neverbounceAccountInfoResponseSchema = z.object({
+  status: z.string(),
+  credits_info: z.object({
+    paid_credits_used: z.number(),
+    free_credits_used: z.number(),
+    paid_credits_remaining: z.number(),
+    free_credits_remaining: z.number(),
+  }),
+  job_counts: z.object({
+    completed: z.number(),
+    under_review: z.number(),
+    queued: z.number(),
+    processing: z.number(),
+  }),
+  execution_time: z.number(),
+});
 
+export type NeverbounceResponse = z.infer<typeof neverbounceResponseSchema>;
+export type NeverbounceAccountInfoResponse = z.infer<typeof neverbounceAccountInfoResponseSchema>;
 export async function verifyEmail(email: string) {
   const url = `${API_URL}?key=${API_KEY}&email=${encodeURIComponent(email)}`;
   const apiResponse = await fetch(url);
@@ -24,6 +41,18 @@ export async function verifyEmail(email: string) {
   const parsedResponse = neverbounceResponseSchema.parse(responseJson);
   return {
     success: parsedResponse.result === "valid",
+    data: parsedResponse,
+    error: null,
+  };
+}
+
+export async function getNeverbounceAccountInfo() {
+  const url = `https://api.neverbounce.com/v4.2/account/info?key=${API_KEY}`;
+  const apiResponse = await fetch(url);
+  const responseJson = await apiResponse.json();
+  const parsedResponse = neverbounceAccountInfoResponseSchema.parse(responseJson);
+  return {
+    success: parsedResponse.credits_info.paid_credits_remaining > 0,
     data: parsedResponse,
     error: null,
   };
