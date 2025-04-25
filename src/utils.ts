@@ -119,46 +119,50 @@ export function parseContactsFromCsv(csvString: string): Promise<ApolloContact[]
             Object.keys(row).length === 0 ||
             Object.values(row).every((v) => v === "" || v === null || v === undefined)
           ) {
+            // Skip truly empty rows silently
             return;
           }
           const parsed = ApolloContactSchema.safeParse(row);
           if (parsed.success) {
             validatedContacts.push(parsed.data);
           } else {
+            // Collect validation errors instead of rejecting immediately
             validationErrors.push({ row: index + 2, errors: parsed.error.issues }); // +2 because of header row and 0-based index
           }
         });
 
+        // Log errors if any occurred, but don't reject the promise
         if (validationErrors.length > 0) {
-          console.error("CSV Validation Errors:", JSON.stringify(validationErrors, null, 2));
-          // Optionally reject if validation fails, or return partially valid data
-          // Here, we'll reject with a summary of validation errors
-          return reject(
-            new Error(
-              `CSV validation failed for ${
-                validationErrors.length
-              } row(s): ${validationErrors.map((e) => `Row ${e.row}`).join(", ")}. Check server console for details.`
-            )
+          console.error(
+            `CSV Validation Errors (${validationErrors.length} rows skipped):`,
+            JSON.stringify(validationErrors, null, 2)
           );
+          // Optionally, you could return more detailed info about errors here if needed by the caller
         }
 
+        // Always resolve with the contacts that passed validation.
+        // If validationErrors.length > 0 but validatedContacts is empty,
+        // it means parsing succeeded but no rows met the schema criteria (or all valid rows were filtered out).
+        // The calling function should handle the case where validatedContacts might be empty.
         if (
           validatedContacts.length === 0 &&
-          results.data.length > 0 &&
-          validationErrors.length === 0
+          results.data.filter(
+            (r) =>
+              Object.keys(r).length > 0 &&
+              !Object.values(r).every((v) => v === "" || v === null || v === undefined)
+          ).length > 0 // Check if there were non-empty rows to begin with
         ) {
-          // This case implies successful parsing but no rows passed validation or all rows were effectively empty
-          return reject(
-            new Error(
-              "CSV parsing resulted in zero valid contacts. Ensure the file is not empty and headers/content match the expected format."
-            )
+          // Log if parsing seemed successful but yielded no valid contacts from non-empty input rows
+          console.warn(
+            "CSV parsing resulted in zero valid contacts after processing potentially invalid rows. Check validation errors above and ensure the file content matches the expected format."
           );
+          // Still resolve with an empty array
         }
 
         resolve(validatedContacts);
       },
       error: (error: Error) => {
-        console.error("CSV Parsing Failed:", error);
+        console.error("CSV Parsing Failed Critically:", error);
         reject(error);
       },
     });
