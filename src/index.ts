@@ -189,7 +189,7 @@ app.post(
         return createErrorResponse(c, 400, errorMsg);
       }
 
-      const BATCH_SIZE = 100; // Process 100 contacts per batch
+      const BATCH_SIZE = 30; // Reduced batch size to avoid 256KB payload limit
       const INTER_BATCH_DELAY_MS = 500; // 0.5 second delay between batches
       let successfullyQueuedCount = 0;
       let failedToQueueCount = 0;
