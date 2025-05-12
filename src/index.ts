@@ -7,6 +7,7 @@ import { resolver, validator as zValidator } from "hono-openapi/zod";
 import type { Next } from "hono/types";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { ApolloContact } from "./services/apollo/schema";
+import websiteScreenshotService, { type WebsiteScreenshotJob } from "./services/webscreenshot";
 import { parseContactsFromCsv } from "./utils";
 
 const app = new Hono();
@@ -248,6 +249,27 @@ app.post(
   }
 );
 
+app.post("/webscreenshot/test", async (c) => {
+  try {
+    const { url, templateImageKey, outputKey } = await c.req.json();
+    if (!url || !templateImageKey || !outputKey) {
+      return c.json({ success: false, error: "Missing required fields" }, 400);
+    }
+    const jobId = crypto.randomUUID();
+    const job = {
+      url,
+      templateImageKey,
+      outputKey,
+      jobId,
+      status: "queued",
+    };
+    await c.env.WEBSCREENSHOT_QUEUE.send(job);
+    return c.json({ success: true, jobId, status: "queued" });
+  } catch (err) {
+    return c.json({ success: false, error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
 app.get(
   "/openapi",
   openAPISpecs(app, {
@@ -283,23 +305,37 @@ export default {
   port: 8787,
   fetch: app.fetch,
   async queue(
-    batch: MessageBatch<{
-      contact: ApolloContact;
-      contactEmail: string;
-      campaignName: string;
-    }>,
+    batch: MessageBatch<
+      { contact: ApolloContact; contactEmail: string; campaignName: string } | WebsiteScreenshotJob
+    >,
     env: Env
   ): Promise<void> {
     for (const message of batch.messages) {
       try {
-        await env.EMAIL_PIPE_WORKFLOW.create({ params: message.body });
+        if (message.body && typeof message.body === "object") {
+          if ("contact" in message.body && "contactEmail" in message.body) {
+            await env.EMAIL_PIPE_WORKFLOW.create({ params: message.body });
+            message.ack();
+            continue;
+          }
+          if (
+            "url" in message.body &&
+            "templateImageKey" in message.body &&
+            "outputKey" in message.body
+          ) {
+            await websiteScreenshotService.processScreenshotJob(message.body, env);
+            message.ack();
+            continue;
+          }
+        }
+        console.error("Unknown queue message type:", message.body);
         message.ack();
-      } catch (creationErr: unknown) {
+      } catch (err) {
         try {
           message.retry({ delaySeconds: 60 });
-        } catch (retryErr: unknown) {
+        } catch (retryErr) {
           console.error(
-            `Failed to retry message for ${message.body.contactEmail}: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`
+            `Failed to retry queue message: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`
           );
           message.ack();
         }

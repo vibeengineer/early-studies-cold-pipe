@@ -19,11 +19,18 @@
       {
         "queue": "cold-pipe-queue",
         "binding": "QUEUE"
+      },
+      {
+        "queue": "webscreenshot-queue",
+        "binding": "WEBSCREENSHOT_QUEUE"
       }
     ],
     "consumers": [
       {
         "queue": "cold-pipe-queue"
+      },
+      {
+        "queue": "webscreenshot-queue"
       }
     ]
   },
@@ -46,12 +53,12 @@
   //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   //   }
   // ],
-  // "r2_buckets": [
-  //   {
-  //     "binding": "MY_BUCKET",
-  //     "bucket_name": "my-bucket"
-  //   }
-  // ],
+  "r2_buckets": [
+    {
+      "binding": "WEBSCREENSHOT_BUCKET",
+      "bucket_name": "webscreenshot-screenshots"
+    }
+  ],
   // "observability": {
   //   "enabled": true,
   //   "head_sampling_rate": 1
