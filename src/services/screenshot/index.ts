@@ -59,6 +59,44 @@ export async function captureWebsiteScreenshot(
     await page.setViewport(viewport);
   }
   await page.goto(url, { waitUntil: "networkidle0" });
+
+  // Generic attempt to hide cookie banners or accept cookies
+  await page.evaluate(() => {
+    // Define types for browser context
+    type MyHTMLElement = Element & { click: () => void; textContent: string };
+    const expectedText =
+      /^(Akzeptieren|Accept|Accept all cookies|Accept all|Allow|Allow all|Allow all cookies|Ok)$/gi;
+    function isElementWithText(el: Element): el is MyHTMLElement {
+      return (
+        typeof (el as MyHTMLElement).click === "function" &&
+        typeof (el as MyHTMLElement).textContent === "string" &&
+        !!(el as MyHTMLElement).textContent.trim().match(expectedText)
+      );
+    }
+    const clickAccept = (selector: string): boolean => {
+      // @ts-ignore
+      const elements = document.querySelectorAll(selector);
+      for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+        if (isElementWithText(element)) {
+          element.click();
+          return true;
+        }
+      }
+      return false;
+    };
+    if (
+      clickAccept(
+        "a[id*=cookie i], a[class*=cookie i], button[id*=cookie i], button[class*=cookie i]"
+      )
+    ) {
+      return;
+    }
+    clickAccept("a, button");
+  });
+  // Wait for possible animation/transition after hiding banner
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
   const screenshot = await page.screenshot({
     type: "png",
   });
