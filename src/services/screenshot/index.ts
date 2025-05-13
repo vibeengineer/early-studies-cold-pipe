@@ -59,7 +59,10 @@ export async function captureWebsiteScreenshot(
     await page.setViewportSize(viewport ?? { width: 1304, height: 910 });
   }
   await page.goto(url, { waitUntil: "networkidle" });
-  const screenshot = await page.screenshot({ type: "png", quality: 80 });
+  const screenshot = await page.screenshot({
+    type: "png",
+    style: "::-webkit-scrollbar { display: none; }",
+  });
   await page.close();
   // browser.disconnect(); // Do not close, so session can be reused
   return screenshot;
