@@ -6,7 +6,7 @@ import {
   connect,
   launch,
   sessions,
-} from "@cloudflare/playwright";
+} from "@cloudflare/puppeteer";
 
 export type QueueWebsiteScreenshotParams = {
   url: string;
@@ -56,15 +56,14 @@ export async function captureWebsiteScreenshot(
 
   const page = await browser.newPage();
   if (viewport) {
-    await page.setViewportSize(viewport ?? { width: 1304, height: 910 });
+    await page.setViewport(viewport);
   }
-  await page.goto(url, { waitUntil: "networkidle" });
+  await page.goto(url, { waitUntil: "networkidle0" });
   const screenshot = await page.screenshot({
     type: "png",
-    style: "::-webkit-scrollbar { display: none; }",
   });
   await page.close();
-  // browser.disconnect(); // Do not close, so session can be reused
+  browser.disconnect(); // Do not close, so session can be reused
   return screenshot;
 }
 
