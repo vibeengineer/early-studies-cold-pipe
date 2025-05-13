@@ -1,3 +1,5 @@
+import type { Context } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import Papa from "papaparse";
 import type { z } from "zod";
 import { type ApolloContact, ApolloContactSchema } from "./services/apollo/schema";
@@ -170,4 +172,15 @@ export function parseContactsFromCsv(csvString: string): Promise<{
       },
     });
   });
+}
+
+export function createErrorResponse(c: Context, status: ContentfulStatusCode, message?: string) {
+  return c.json(
+    {
+      success: false,
+      data: null,
+      error: message,
+    },
+    status
+  );
 }

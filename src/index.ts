@@ -1,175 +1,30 @@
-import { type Context, Hono } from "hono";
+import { Hono } from "hono";
 import z from "zod";
 import "zod-openapi/extend";
 import { Scalar } from "@scalar/hono-api-reference";
 import { describeRoute, openAPISpecs } from "hono-openapi";
-import { resolver, validator as zValidator } from "hono-openapi/zod";
-import type { Next } from "hono/types";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { validator as zValidator } from "hono-openapi/zod";
+import { createAuthMiddleware } from "./middleware";
+import { queueContactsRoute, webScreenshotRoute } from "./routes";
+import { ContactQueueFormSchema } from "./schemas";
 import type { ApolloContact } from "./services/apollo/schema";
-import websiteScreenshotService, { type WebsiteScreenshotJob } from "./services/webscreenshot";
-import { parseContactsFromCsv } from "./utils";
+import type { WebsiteScreenshotJob } from "./services/screenshot";
+import { captureWebsiteScreenshot } from "./services/screenshot";
+import { createErrorResponse, parseContactsFromCsv } from "./utils";
 
-const app = new Hono();
+const app = new Hono<{ Bindings: Env }>();
 
 app.get("/", (c) => {
-  return c.text("Hello Hono!");
-});
-
-function createErrorResponse(c: Context, status: ContentfulStatusCode, message?: string) {
-  return c.json(
-    {
-      success: false,
-      data: null,
-      error: message,
-    },
-    status
-  );
-}
-
-export function validateToken(
-  userToken: string | undefined | null,
-  expectedToken: string
-): {
-  missing: boolean;
-  valid: boolean;
-} {
-  if (!userToken) {
-    return { missing: true, valid: false };
-  }
-
-  if (userToken !== expectedToken) {
-    return { missing: false, valid: false };
-  }
-
-  return { missing: false, valid: true };
-}
-
-export function createAuthMiddleware() {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
-    const { missing, valid } = validateToken(
-      c.req.header("Authorization"),
-      `Bearer ${c.env.BEARER_TOKEN}`
-    );
-
-    if (missing || !valid) {
-      const status = missing ? 401 : 403;
-      const code = missing ? "AUTH_MISSING_TOKEN" : "AUTH_INVALID_TOKEN";
-      const message = missing ? "Authorization token is missing" : "Authorization token is invalid";
-
-      return c.json(
-        {
-          data: null,
-          success: false,
-          error: { message: message, code: code },
-        },
-        status
-      );
-    }
-
-    await next();
-  };
-}
-
-// Define the schema for the multipart/form-data request
-const ContactQueueFormSchema = z.object({
-  smartleadCampaignId: z.coerce.number().openapi({
-    description: "The id of the campaign to associate the contacts with.",
-    example: 123,
-  }),
-  contactsFile: z
-    .custom<File>((val) => val instanceof File, "Input must be a CSV file")
-    .refine((file) => file.type === "text/csv", {
-      message: "File must be a CSV.",
-    })
-    .refine((file) => file.size > 0, {
-      message: "CSV file cannot be empty.",
-    })
-    .openapi({
-      type: "string", // Important for OpenAPI spec generation for files
-      format: "binary",
-      description:
-        "CSV file containing contacts. Headers must match Apollo contact fields (e.g., 'First Name', 'Email', 'Person Linkedin Url').",
-    }),
+  return c.json({
+    success: true,
+    data: "Hello World",
+  });
 });
 
 app.post(
   "/contact/queue",
   createAuthMiddleware(),
-  describeRoute({
-    description: "Queue contacts from a CSV file for email pipe processing.",
-    requestBody: {
-      content: {
-        "multipart/form-data": {
-          schema: ContactQueueFormSchema,
-        },
-      },
-    },
-    responses: {
-      200: {
-        description: "Successful queueing of contacts from CSV.",
-        content: {
-          "application/json": {
-            schema: resolver(
-              z.object({
-                success: z.literal(true),
-                data: z.object({
-                  message: z.string(),
-                  totalRowsInCsv: z.number().openapi({
-                    description:
-                      "Total data rows found in the CSV file (excluding header/empty lines).",
-                  }),
-                  validRowsFound: z
-                    .number()
-                    .openapi({ description: "Number of rows that passed validation." }),
-                  invalidRowsSkipped: z.number().openapi({
-                    description: "Number of rows that failed validation and were skipped.",
-                  }),
-                  successfullyQueuedCount: z.number().openapi({
-                    description: "Number of valid contacts successfully sent to the queue.",
-                  }),
-                  failedToQueueCount: z.number().openapi({
-                    description: "Number of valid contacts that failed to be sent to the queue.",
-                  }),
-                }),
-                error: z.null(),
-              })
-            ),
-          },
-        },
-      },
-      400: {
-        description:
-          "Bad Request (e.g., invalid form data, invalid CSV file, CSV parsing/validation error)", // Updated description
-        content: {
-          "application/json": {
-            schema: resolver(
-              z.object({
-                success: z.boolean(),
-                data: z.null(),
-                error: z.string(),
-              })
-            ),
-          },
-        },
-      },
-      500: {
-        description: "Internal Server Error (e.g., queueing failed)",
-        content: {
-          "application/json": {
-            schema: resolver(
-              z.object({
-                success: z.boolean(),
-                data: z.null(),
-                error: z.string(),
-              })
-            ),
-          },
-        },
-      },
-    },
-    tags: ["Email Pipe"],
-  }),
+  describeRoute(queueContactsRoute),
   zValidator("form", ContactQueueFormSchema),
   async (c) => {
     const { contactsFile, smartleadCampaignId } = c.req.valid("form");
@@ -249,26 +104,30 @@ app.post(
   }
 );
 
-app.post("/webscreenshot/test", async (c) => {
-  try {
-    const { url, templateImageKey, outputKey } = await c.req.json();
-    if (!url || !templateImageKey || !outputKey) {
-      return c.json({ success: false, error: "Missing required fields" }, 400);
+app.get(
+  "/screenshot",
+  describeRoute(webScreenshotRoute),
+  zValidator(
+    "query",
+    z.object({
+      url: z.string(),
+    })
+  ),
+  async (c) => {
+    try {
+      const { url } = c.req.valid("query");
+      const screenshot = await captureWebsiteScreenshot(url);
+      return new Response(screenshot, {
+        headers: { "content-type": "image/png" },
+      });
+    } catch (err) {
+      return c.json(
+        { success: false, error: err instanceof Error ? err.message : String(err) },
+        500
+      );
     }
-    const jobId = crypto.randomUUID();
-    const job = {
-      url,
-      templateImageKey,
-      outputKey,
-      jobId,
-      status: "queued",
-    };
-    await c.env.WEBSCREENSHOT_QUEUE.send(job);
-    return c.json({ success: true, jobId, status: "queued" });
-  } catch (err) {
-    return c.json({ success: false, error: err instanceof Error ? err.message : String(err) }, 500);
   }
-});
+);
 
 app.get(
   "/openapi",
@@ -323,7 +182,7 @@ export default {
             "templateImageKey" in message.body &&
             "outputKey" in message.body
           ) {
-            await websiteScreenshotService.processScreenshotJob(message.body, env);
+            // await websiteScreenshotService.processScreenshotJob(message.body, env);
             message.ack();
             continue;
           }

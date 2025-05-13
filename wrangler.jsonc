@@ -11,7 +11,8 @@
       "migrations_dir": "./src/database/migrations",
       "binding": "DB",
       "database_name": "early-studies-cold-pipe-database",
-      "database_id": "21d9f233-c99c-49dd-a9f5-eae3667b4c77"
+      "database_id": "21d9f233-c99c-49dd-a9f5-eae3667b4c77",
+      "preview_database_id": "dbe7f286-4d51-4d1b-90ed-34ea0ccd1c6e"
     }
   ],
   "queues": {
@@ -21,8 +22,8 @@
         "binding": "QUEUE"
       },
       {
-        "queue": "webscreenshot-queue",
-        "binding": "WEBSCREENSHOT_QUEUE"
+        "queue": "screenshot-queue",
+        "binding": "SCREENSHOT_QUEUE"
       }
     ],
     "consumers": [
@@ -30,7 +31,7 @@
         "queue": "cold-pipe-queue"
       },
       {
-        "queue": "webscreenshot-queue"
+        "queue": "screenshot-queue"
       }
     ]
   },
@@ -53,12 +54,17 @@
   //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   //   }
   // ],
+  
   "r2_buckets": [
     {
-      "binding": "WEBSCREENSHOT_BUCKET",
-      "bucket_name": "webscreenshot-screenshots"
+      "binding": "SCREENSHOTS_BUCKET",
+      "bucket_name": "screenshots-bucket",
+      "preview_bucket_name": "screenshots-preview-bucket"
     }
   ],
+  "browser": {
+    "binding": "BROWSER"
+  }
   // "observability": {
   //   "enabled": true,
   //   "head_sampling_rate": 1
