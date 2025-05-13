@@ -56,7 +56,12 @@ export async function captureWebsiteScreenshot(
 
   const page = await browser.newPage();
   if (viewport) {
-    await page.setViewport(viewport);
+    await page.setViewport(
+      viewport ?? {
+        width: 1304,
+        height: 910,
+      }
+    );
   }
   await page.goto(url, { waitUntil: "networkidle0" });
 
