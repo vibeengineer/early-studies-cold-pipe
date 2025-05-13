@@ -20,26 +20,6 @@ export type WebsiteScreenshotJob = QueueWebsiteScreenshotParams & {
   error?: string;
 };
 
-// Terminal window
-// curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
-//   -H 'Authorization: Bearer <apiToken>' \
-//   -H 'Content-Type: application/json' \
-//   -d '{
-//     "url": "https://cnn.com/",
-//     "screenshotOptions": {
-//        "fullPage": true
-//     },
-//     "viewport": {
-//       "width": 1280,
-//       "height": 720
-//     },
-//     "gotoOptions": {
-//       "waitUntil": "networkidle0",
-//       "timeout": 45000
-//     }
-//   }' \
-//   --output "advanced-screenshot.png"
-
 /**
  * Attempts to reuse a Playwright browser session for performance. If no free session is available, launches a new one.
  * Navigates to the given URL, takes a screenshot, and disconnects (not closes) the browser for reuse.
@@ -69,7 +49,7 @@ export async function captureWebsiteScreenshot(
     }
   }
   if (!browser) {
-    browser = await launch(browserWorker, { keep_alive: 600000 }); // 10 min keep alive
+    browser = await launch(browserWorker, { keep_alive: 1000 * 60 * 10 }); // 10 min keep alive
     launched = true;
     sessionId = browser.sessionId();
   }
@@ -79,7 +59,7 @@ export async function captureWebsiteScreenshot(
     await page.setViewportSize(viewport ?? { width: 1304, height: 910 });
   }
   await page.goto(url, { waitUntil: "networkidle" });
-  const screenshot = await page.screenshot({ type: "png" });
+  const screenshot = await page.screenshot({ type: "png", quality: 80 });
   await page.close();
   // browser.disconnect(); // Do not close, so session can be reused
   return screenshot;
